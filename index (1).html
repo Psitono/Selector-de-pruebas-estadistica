@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Selector de prueba estadística · Dr. Jose Antonio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --paper:#F5F1E8;
+    --paper-2:#EFE9DB;
+    --ink:#1B1C22;
+    --ink-soft:#3B3C44;
+    --muted:#6B6B72;
+    --accent:#B5472E;
+    --accent-soft:#E4A88E;
+    --line:#D9D1BE;
+    --ok:#2F6B4E;
+    --warn:#8A5A00;
+  }
+  html,body{background:var(--paper);color:var(--ink);}
+  body{font-family:'Public Sans',ui-sans-serif,system-ui,sans-serif;font-feature-settings:"ss01","cv11";}
+  .serif{font-family:'Fraunces',ui-serif,Georgia,serif;font-optical-sizing:auto;}
+  .mono{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;}
+  .paper-grain{
+    background-image:
+      radial-gradient(rgba(27,28,34,.035) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+  .rule{border-color:var(--line);}
+  .btn-accent{background:var(--accent);color:#F5F1E8;}
+  .btn-accent:hover{background:#9B3B24;}
+  .chip{border:1px solid var(--line);background:var(--paper-2);}
+  select,input,textarea{
+    background:var(--paper);border:1px solid var(--line);
+    border-radius:4px;padding:.55rem .7rem;width:100%;
+    font-family:inherit;font-size:.92rem;color:var(--ink);
+    transition:border-color .15s,box-shadow .15s;
+  }
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(181,71,46,.15);}
+  textarea{min-height:5.5rem;resize:vertical;}
+  .label{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;}
+  .card{background:var(--paper);border:1px solid var(--line);}
+  details>summary{list-style:none;cursor:pointer;}
+  details>summary::-webkit-details-marker{display:none;}
+  .marker::before{content:"§";color:var(--accent);margin-right:.4rem;font-family:'Fraunces',serif;}
+  .fade-in{animation:fade .35s ease-out both;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+  .num{font-variant-numeric:tabular-nums;}
+  @media print{
+    .no-print{display:none!important;}
+    body{background:#fff;}
+    .card{border-color:#ccc;}
+  }
+</style>
+</head>
+<body class="min-h-screen paper-grain">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useMemo, useState, useEffect } = React;
+
+/* ============================================================
+   CATÁLOGO DE PRUEBAS
+   Cada entrada: descripción, supuestos, SPSS, Jamovi, tamaño de efecto
+   ============================================================ */
+const TESTS = {
+  "t_una_muestra": {
+    name: "t de Student para una muestra",
+    family: "Paramétrica",
+    purpose: "Comparar la media de un grupo con un valor teórico o poblacional conocido.",
+    assumptions: ["VD cuantitativa continua", "Distribución aproximadamente normal (o n ≥ 30)", "Observaciones independientes"],
+    spss: ["Analizar → Comparar medias → Prueba T para una muestra", "Seleccionar la variable de prueba", "Escribir el valor de contraste en 'Valor de prueba'"],
+    jamovi: "T-Tests → One Sample T-Test",
+    effect: "d de Cohen"
+  },
+  "wilcoxon_una_muestra": {
+    name: "Prueba de Wilcoxon para una muestra (signed-rank)",
+    family: "No paramétrica",
+    purpose: "Alternativa no paramétrica a la t de una muestra cuando la distribución no es normal.",
+    assumptions: ["VD al menos ordinal o continua", "Distribución simétrica alrededor de la mediana"],
+    spss: ["Analizar → Pruebas no paramétricas → Una muestra", "Elegir 'Personalizar' y marcar Wilcoxon", "Definir valor hipotético"],
+    jamovi: "T-Tests → One Sample T-Test → marcar 'Wilcoxon rank'",
+    effect: "r = Z/√N"
+  },
+  "t_independientes": {
+    name: "t de Student para muestras independientes",
+    family: "Paramétrica",
+    purpose: "Comparar medias de dos grupos independientes.",
+    assumptions: ["VD cuantitativa continua", "Normalidad dentro de cada grupo (o n ≥ 30 por grupo)", "Homogeneidad de varianzas (Levene)", "Independencia"],
+    spss: ["Analizar → Comparar medias → Prueba T para muestras independientes", "Variable de prueba = VD", "Variable de agrupación = VI (definir dos grupos)"],
+    jamovi: "T-Tests → Independent Samples T-Test",
+    effect: "d de Cohen o g de Hedges"
+  },
+  "t_welch": {
+    name: "t de Welch (varianzas desiguales)",
+    family: "Paramétrica",
+    purpose: "Comparar medias de dos grupos independientes cuando las varianzas son heterogéneas.",
+    assumptions: ["VD continua", "Normalidad razonable", "No requiere homogeneidad de varianzas"],
+    spss: ["Analizar → Comparar medias → Prueba T para muestras independientes", "En la salida, leer la fila 'No se asumen varianzas iguales'"],
+    jamovi: "T-Tests → Independent Samples T-Test → marcar 'Welch's'",
+    effect: "d de Cohen con corrección"
+  },
+  "mann_whitney": {
+    name: "U de Mann-Whitney",
+    family: "No paramétrica",
+    purpose: "Comparar dos grupos independientes cuando la VD es ordinal o no normal.",
+    assumptions: ["VD al menos ordinal", "Independencia", "Forma de distribución similar entre grupos (para interpretar medianas)"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras independientes", "Definir campos: variable y grupos", "SPSS selecciona Mann-Whitney automáticamente para 2 grupos"],
+    jamovi: "T-Tests → Independent Samples T-Test → marcar 'Mann-Whitney U'",
+    effect: "r = Z/√N"
+  },
+  "t_pareada": {
+    name: "t de Student para muestras relacionadas",
+    family: "Paramétrica",
+    purpose: "Comparar dos mediciones en las mismas personas (pre-post o dos condiciones).",
+    assumptions: ["Diferencias aproximadamente normales", "Pares de observaciones relacionadas"],
+    spss: ["Analizar → Comparar medias → Prueba T para muestras relacionadas", "Seleccionar el par de variables"],
+    jamovi: "T-Tests → Paired Samples T-Test",
+    effect: "d de Cohen para medidas repetidas"
+  },
+  "wilcoxon_pareado": {
+    name: "Wilcoxon de rangos con signo",
+    family: "No paramétrica",
+    purpose: "Alternativa no paramétrica a la t pareada para dos mediciones relacionadas.",
+    assumptions: ["VD al menos ordinal", "Diferencias simétricas"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras relacionadas", "Definir campos: seleccionar el par", "SPSS elige Wilcoxon automáticamente"],
+    jamovi: "T-Tests → Paired Samples T-Test → marcar 'Wilcoxon rank'",
+    effect: "r = Z/√N"
+  },
+  "signos": {
+    name: "Prueba de los signos",
+    family: "No paramétrica",
+    purpose: "Alternativa muy robusta a Wilcoxon cuando no se cumple la simetría de diferencias.",
+    assumptions: ["Pares relacionados", "No requiere simetría"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras relacionadas", "Personalizar y marcar 'Prueba de los signos'"],
+    jamovi: "No disponible nativamente; aproximable con módulos",
+    effect: "Proporción de signos positivos"
+  },
+  "anova_una_via": {
+    name: "ANOVA de un factor (one-way)",
+    family: "Paramétrica",
+    purpose: "Comparar medias de tres o más grupos independientes.",
+    assumptions: ["VD continua", "Normalidad dentro de grupos", "Homogeneidad de varianzas (Levene)", "Independencia"],
+    spss: ["Analizar → Comparar medias → ANOVA de un factor", "Dependiente = VD, Factor = VI", "En 'Post hoc' elegir Tukey (o Games-Howell si varianzas desiguales)"],
+    jamovi: "ANOVA → One-Way ANOVA",
+    effect: "η² / ω² / η²p"
+  },
+  "welch_anova": {
+    name: "ANOVA de Welch",
+    family: "Paramétrica robusta",
+    purpose: "ANOVA de un factor cuando las varianzas son heterogéneas.",
+    assumptions: ["VD continua", "No requiere homogeneidad de varianzas"],
+    spss: ["Analizar → Comparar medias → ANOVA de un factor → Opciones → marcar 'Welch' y 'Brown-Forsythe'"],
+    jamovi: "ANOVA → One-Way ANOVA → marcar 'Welch's'",
+    effect: "ω² o η²"
+  },
+  "kruskal_wallis": {
+    name: "Prueba de Kruskal-Wallis",
+    family: "No paramétrica",
+    purpose: "Alternativa no paramétrica al ANOVA de un factor (3+ grupos independientes).",
+    assumptions: ["VD al menos ordinal", "Independencia"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras independientes", "Definir campos y ejecutar; para comparaciones post hoc usar Dunn-Bonferroni en la salida"],
+    jamovi: "ANOVA → Non-Parametric → One-Way ANOVA (Kruskal-Wallis)",
+    effect: "ε² o η²H"
+  },
+  "rm_anova": {
+    name: "ANOVA de medidas repetidas",
+    family: "Paramétrica",
+    purpose: "Comparar tres o más mediciones en las mismas personas.",
+    assumptions: ["VD continua", "Normalidad de diferencias", "Esfericidad (Mauchly); si no se cumple, Greenhouse-Geisser"],
+    spss: ["Analizar → Modelo lineal general → Medidas repetidas", "Definir factor intra-sujetos y niveles", "Asignar variables a cada nivel"],
+    jamovi: "ANOVA → Repeated Measures ANOVA",
+    effect: "η²p o ω²"
+  },
+  "friedman": {
+    name: "Prueba de Friedman",
+    family: "No paramétrica",
+    purpose: "Alternativa no paramétrica al ANOVA de medidas repetidas (3+ condiciones pareadas).",
+    assumptions: ["VD al menos ordinal", "Mismas unidades evaluadas en todas las condiciones"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras relacionadas", "Seleccionar 3+ variables y ejecutar Friedman; post hoc con Durbin-Conover o Wilcoxon ajustado"],
+    jamovi: "ANOVA → Non-Parametric → Repeated Measures (Friedman)",
+    effect: "W de Kendall"
+  },
+  "anova_factorial": {
+    name: "ANOVA factorial (dos o más factores)",
+    family: "Paramétrica",
+    purpose: "Evaluar efectos principales e interacciones de dos o más variables independientes sobre una VD continua.",
+    assumptions: ["VD continua", "Normalidad", "Homogeneidad de varianzas", "Independencia"],
+    spss: ["Analizar → Modelo lineal general → Univariante", "VD al recuadro 'Dependiente', VIs a 'Factores fijos'", "Solicitar gráficos de perfil para interpretar interacciones"],
+    jamovi: "ANOVA → ANOVA (añadir varios factores fijos)",
+    effect: "η²p para cada efecto e interacción"
+  },
+  "ancova": {
+    name: "ANCOVA",
+    family: "Paramétrica",
+    purpose: "Comparar medias entre grupos controlando una o más covariables continuas.",
+    assumptions: ["Linealidad VD-covariable", "Homogeneidad de pendientes de regresión", "Supuestos del ANOVA"],
+    spss: ["Analizar → Modelo lineal general → Univariante", "VI como Factor, covariable(s) en 'Covariables'", "Verificar interacción factor×covariable antes del modelo final"],
+    jamovi: "ANOVA → ANCOVA",
+    effect: "η²p"
+  },
+  "manova": {
+    name: "MANOVA",
+    family: "Paramétrica multivariante",
+    purpose: "Comparar grupos sobre dos o más VDs continuas simultáneamente.",
+    assumptions: ["Normalidad multivariante", "Homogeneidad de matrices de covarianza (Box's M)", "Linealidad entre VDs"],
+    spss: ["Analizar → Modelo lineal general → Multivariante", "VDs al recuadro 'Dependientes', VI(s) a 'Factores fijos'"],
+    jamovi: "Requiere módulo GAMLj o equivalente",
+    effect: "Lambda de Wilks, η²p multivariante"
+  },
+  "modelo_mixto": {
+    name: "Modelo lineal mixto (ANOVA mixto)",
+    family: "Paramétrica",
+    purpose: "Diseños con factores intra e inter sujetos, o con datos anidados/longitudinales.",
+    assumptions: ["VD continua", "Normalidad de residuos", "Estructura de covarianza apropiada"],
+    spss: ["Analizar → Modelos mixtos → Lineal", "Definir sujetos y medidas repetidas", "Especificar efectos fijos y aleatorios"],
+    jamovi: "Módulo GAMLj → Mixed Models",
+    effect: "R² marginal y condicional"
+  },
+  "chi_independencia": {
+    name: "Chi-cuadrada de independencia",
+    family: "No paramétrica (categóricas)",
+    purpose: "Evaluar asociación entre dos variables categóricas.",
+    assumptions: ["Observaciones independientes", "≥ 80% de celdas con frecuencia esperada ≥ 5"],
+    spss: ["Analizar → Estadísticos descriptivos → Tablas cruzadas", "Filas y Columnas con las dos variables", "Estadísticos → marcar 'Chi-cuadrado' y 'Phi y V de Cramer'"],
+    jamovi: "Frequencies → Contingency Tables → Independent Samples",
+    effect: "φ (2×2) o V de Cramer"
+  },
+  "fisher": {
+    name: "Prueba exacta de Fisher",
+    family: "No paramétrica (categóricas)",
+    purpose: "Alternativa a chi-cuadrada con tablas pequeñas o frecuencias esperadas bajas.",
+    assumptions: ["Tablas típicamente 2×2 (SPSS también calcula en R×C)", "Observaciones independientes"],
+    spss: ["Analizar → Tablas cruzadas", "Estadísticos → marcar 'Chi-cuadrado' (Fisher aparece automáticamente en tablas 2×2)"],
+    jamovi: "Contingency Tables → marcar 'Fisher's exact test'",
+    effect: "Odds ratio, φ"
+  },
+  "mcnemar": {
+    name: "Prueba de McNemar",
+    family: "No paramétrica (categóricas, pareadas)",
+    purpose: "Comparar dos mediciones dicotómicas pareadas (mismas personas, dos momentos).",
+    assumptions: ["Variable dicotómica", "Observaciones pareadas"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras relacionadas", "Seleccionar las dos variables dicotómicas → Personalizar → McNemar"],
+    jamovi: "Frequencies → Paired Samples (McNemar)",
+    effect: "Diferencia de proporciones"
+  },
+  "cochran_q": {
+    name: "Q de Cochran",
+    family: "No paramétrica (categóricas, pareadas)",
+    purpose: "Comparar tres o más mediciones dicotómicas en las mismas personas.",
+    assumptions: ["Variable dicotómica", "Mismas unidades en 3+ condiciones"],
+    spss: ["Analizar → Pruebas no paramétricas → Muestras relacionadas", "Seleccionar 3+ variables dicotómicas → Personalizar → Q de Cochran"],
+    jamovi: "Módulos extendidos",
+    effect: "Diferencia entre proporciones"
+  },
+  "z_proporciones": {
+    name: "Z para diferencia de proporciones",
+    family: "Paramétrica (proporciones)",
+    purpose: "Comparar la proporción de un evento entre dos grupos independientes.",
+    assumptions: ["Muestras grandes (np ≥ 5 y n(1-p) ≥ 5)", "Independencia"],
+    spss: ["Equivalente a Chi-cuadrada 2×2; también vía Tablas cruzadas con 'Comparar proporciones de columna'"],
+    jamovi: "Frequencies → 2 Outcomes – Binomial test / Proportion test",
+    effect: "h de Cohen"
+  },
+  "pearson": {
+    name: "Correlación de Pearson",
+    family: "Paramétrica",
+    purpose: "Evaluar relación lineal entre dos variables cuantitativas.",
+    assumptions: ["Ambas variables continuas", "Relación lineal", "Normalidad bivariada", "Ausencia de atípicos influyentes"],
+    spss: ["Analizar → Correlaciones → Bivariadas", "Marcar Pearson"],
+    jamovi: "Regression → Correlation Matrix → Pearson",
+    effect: "r (propia magnitud es el tamaño de efecto)"
+  },
+  "spearman": {
+    name: "Correlación de Spearman (ρ)",
+    family: "No paramétrica",
+    purpose: "Relación monotónica entre dos variables ordinales o continuas no normales.",
+    assumptions: ["Variables al menos ordinales", "Relación monotónica"],
+    spss: ["Analizar → Correlaciones → Bivariadas", "Marcar Spearman"],
+    jamovi: "Regression → Correlation Matrix → Spearman",
+    effect: "ρ"
+  },
+  "kendall": {
+    name: "Tau-b de Kendall",
+    family: "No paramétrica",
+    purpose: "Alternativa a Spearman, especialmente útil con muestras pequeñas o muchos empates.",
+    assumptions: ["Variables al menos ordinales"],
+    spss: ["Analizar → Correlaciones → Bivariadas", "Marcar Kendall's tau-b"],
+    jamovi: "Regression → Correlation Matrix → Kendall's tau-b",
+    effect: "τ"
+  },
+  "parcial": {
+    name: "Correlación parcial",
+    family: "Paramétrica",
+    purpose: "Relación entre dos variables controlando el efecto de una tercera.",
+    assumptions: ["Variables continuas", "Relaciones lineales", "Normalidad multivariada"],
+    spss: ["Analizar → Correlaciones → Parciales", "Seleccionar variables y variable(s) de control"],
+    jamovi: "Regression → Partial Correlation (módulo jmv)",
+    effect: "r parcial"
+  },
+  "punto_biserial": {
+    name: "Correlación punto-biserial",
+    family: "Paramétrica",
+    purpose: "Relación entre una variable dicotómica y una continua.",
+    assumptions: ["Una variable dicotómica genuina", "La otra continua y aproximadamente normal"],
+    spss: ["Equivalente matemático a Pearson entre dicotómica codificada 0/1 y variable continua (Correlaciones → Bivariadas)"],
+    jamovi: "Correlation Matrix → Pearson con variable 0/1",
+    effect: "rpb"
+  },
+  "reg_lineal_simple": {
+    name: "Regresión lineal simple",
+    family: "Paramétrica",
+    purpose: "Estimar o predecir una VD continua a partir de una variable predictora.",
+    assumptions: ["Linealidad", "Normalidad de residuos", "Homocedasticidad", "Independencia de residuos"],
+    spss: ["Analizar → Regresión → Lineales", "Dependiente = VD, Independiente = predictor", "Gráficos → Histograma y P-P de residuos estandarizados"],
+    jamovi: "Regression → Linear Regression",
+    effect: "R², β estandarizado"
+  },
+  "reg_lineal_multiple": {
+    name: "Regresión lineal múltiple",
+    family: "Paramétrica",
+    purpose: "Predecir una VD continua a partir de varios predictores y/o covariables.",
+    assumptions: ["Supuestos de regresión simple", "Ausencia de multicolinealidad (VIF < 10)", "Tamaño de muestra suficiente (≥ 10-20 casos por predictor)"],
+    spss: ["Analizar → Regresión → Lineales", "Introducir predictores; en 'Estadísticos' marcar colinealidad", "Considerar método 'Introducir' o 'Por pasos' según hipótesis"],
+    jamovi: "Regression → Linear Regression (añadir múltiples predictores)",
+    effect: "R², R² ajustado, β"
+  },
+  "reg_jerarquica": {
+    name: "Regresión lineal jerárquica",
+    family: "Paramétrica",
+    purpose: "Evaluar aporte incremental de bloques de predictores (p. ej., controles y luego variables de interés).",
+    assumptions: ["Iguales a regresión múltiple"],
+    spss: ["Analizar → Regresión → Lineales", "Usar el botón 'Siguiente' para introducir los predictores por bloques"],
+    jamovi: "Regression → Linear Regression → Model Builder (varios bloques)",
+    effect: "ΔR² por bloque"
+  },
+  "reg_logistica_bin": {
+    name: "Regresión logística binaria",
+    family: "Paramétrica (modelo lineal generalizado)",
+    purpose: "Predecir una VD dicotómica a partir de uno o más predictores.",
+    assumptions: ["VD dicotómica", "Independencia", "Ausencia de multicolinealidad", "Linealidad en el logit para predictores continuos", "Tamaño de muestra adecuado (regla ≥10 eventos por predictor)"],
+    spss: ["Analizar → Regresión → Logística binaria", "Covariables = predictores; si hay categóricas, definirlas en 'Categórica'"],
+    jamovi: "Regression → Logistic Regression → 2 Outcomes",
+    effect: "OR, R² de Nagelkerke"
+  },
+  "reg_logistica_multi": {
+    name: "Regresión logística multinomial",
+    family: "Paramétrica",
+    purpose: "Predecir una VD categórica con más de dos categorías sin orden natural.",
+    assumptions: ["VD nominal con 3+ categorías", "Independencia de alternativas irrelevantes (IIA)"],
+    spss: ["Analizar → Regresión → Logística multinomial", "Definir categoría de referencia"],
+    jamovi: "Regression → Logistic Regression → N Outcomes",
+    effect: "OR por contraste, pseudo R²"
+  },
+  "reg_logistica_ord": {
+    name: "Regresión logística ordinal (odds proporcionales)",
+    family: "Paramétrica",
+    purpose: "Predecir una VD con categorías ordenadas.",
+    assumptions: ["VD ordinal", "Supuesto de odds proporcionales (test de líneas paralelas)"],
+    spss: ["Analizar → Regresión → Ordinal", "Revisar el test de líneas paralelas en la salida"],
+    jamovi: "Regression → Logistic Regression → Ordinal Outcomes",
+    effect: "OR, pseudo R²"
+  },
+  "poisson": {
+    name: "Regresión de Poisson",
+    family: "Paramétrica (GLM)",
+    purpose: "Modelar conteos o tasas de eventos.",
+    assumptions: ["VD = conteo no negativo", "Media ≈ varianza (si no, sobredispersión)"],
+    spss: ["Analizar → Modelos lineales generalizados → Generalizados", "Distribución: Poisson; Enlace: Log"],
+    jamovi: "Módulo GAMLj → Generalized Linear Models",
+    effect: "IRR (Incidence Rate Ratio)"
+  },
+  "bin_negativa": {
+    name: "Regresión binomial negativa",
+    family: "Paramétrica (GLM)",
+    purpose: "Alternativa a Poisson cuando hay sobredispersión (varianza > media).",
+    assumptions: ["VD = conteo", "Admite sobredispersión"],
+    spss: ["Analizar → Modelos lineales generalizados → Generalizados", "Distribución: Binomial negativa"],
+    jamovi: "Módulo GAMLj",
+    effect: "IRR"
+  },
+  "kaplan_meier": {
+    name: "Kaplan-Meier + log-rank",
+    family: "Análisis de supervivencia",
+    purpose: "Describir y comparar curvas de tiempo hasta un evento entre grupos.",
+    assumptions: ["Tiempo hasta evento y estado (evento/censura)", "Censura no informativa"],
+    spss: ["Analizar → Supervivencia → Kaplan-Meier", "Comparar factores → log-rank"],
+    jamovi: "Módulo jamovi-survival",
+    effect: "HR aproximado"
+  },
+  "cox": {
+    name: "Regresión de Cox (riesgos proporcionales)",
+    family: "Análisis de supervivencia",
+    purpose: "Estimar el efecto de predictores sobre el riesgo (hazard) de un evento.",
+    assumptions: ["Riesgos proporcionales", "Censura no informativa"],
+    spss: ["Analizar → Supervivencia → Regresión de Cox"],
+    jamovi: "Módulo jamovi-survival",
+    effect: "Hazard Ratio (HR)"
+  },
+  "shapiro": {
+    name: "Shapiro-Wilk (supuesto)",
+    family: "Diagnóstico",
+    purpose: "Evaluar normalidad de una variable continua (apropiado con n < 50; aceptable hasta ~300).",
+    assumptions: [],
+    spss: ["Analizar → Estadísticos descriptivos → Explorar → Gráficos → marcar 'Pruebas de normalidad'"],
+    jamovi: "Descriptives → marcar 'Shapiro-Wilk'",
+    effect: "—"
+  },
+  "levene": {
+    name: "Levene (supuesto)",
+    family: "Diagnóstico",
+    purpose: "Evaluar homogeneidad de varianzas entre grupos.",
+    assumptions: [],
+    spss: ["Aparece automáticamente en ANOVA y t independientes; también en Analizar → Comparar medias → ANOVA → Opciones"],
+    jamovi: "En los diálogos de T-Test y ANOVA, marcar 'Homogeneity test'",
+    effect: "—"
+  },
+  "manual": {
+    name: "Revisión manual del diseño",
+    family: "—",
+    purpose: "La combinación de opciones seleccionadas no apunta a una prueba única; conviene especificar mejor el diseño o consultar asesoría.",
+    assumptions: [],
+    spss: ["—"],
+    jamovi: "—",
+    effect: "—"
+  }
+};
+
+/* ============================================================
+   OPCIONES DEL FORMULARIO
+   ============================================================ */
+const objectives = [
+  { value: "una_muestra", label: "Comparar una media con un valor conocido" },
+  { value: "comparar", label: "Comparar grupos" },
+  { value: "cambio", label: "Evaluar cambio / medidas repetidas" },
+  { value: "relacion", label: "Relacionar variables" },
+  { value: "predecir", label: "Predecir / explicar" },
+  { value: "asociacion_cat", label: "Asociación entre categóricas" },
+  { value: "supervivencia", label: "Tiempo hasta un evento (supervivencia)" },
+  { value: "multivariante", label: "Varias VDs continuas (multivariante)" },
+];
+
+const dvTypes = [
+  { value: "continua", label: "Cuantitativa continua" },
+  { value: "ordinal", label: "Ordinal" },
+  { value: "nominal", label: "Nominal / categórica" },
+  { value: "dicotomica", label: "Dicotómica (sí/no, caso/control)" },
+  { value: "conteo", label: "Conteo / frecuencia" },
+  { value: "tiempo", label: "Tiempo hasta evento (con censura)" },
+];
+
+const ivCounts = [
+  { value: "1", label: "Una sola muestra vs. valor fijo" },
+  { value: "2", label: "Dos grupos / dos condiciones" },
+  { value: "3+", label: "Tres o más grupos / condiciones" },
+  { value: "factorial", label: "Dos o más factores (diseño factorial)" },
+];
+
+const designs = [
+  { value: "independientes", label: "Grupos independientes" },
+  { value: "pareados", label: "Pareados / mismas personas" },
+  { value: "mixto", label: "Mixto (intra + inter)" },
+  { value: "transversal", label: "Transversal / no aplica" },
+];
+
+const normalityOpts = [
+  { value: "si", label: "Sí / aproximadamente normal" },
+  { value: "no", label: "No / sesgada" },
+  { value: "nose", label: "No lo sé" },
+];
+
+const varianceOpts = [
+  { value: "si", label: "Sí / semejantes" },
+  { value: "no", label: "No / desiguales" },
+  { value: "nose", label: "No lo sé" },
+];
+
+const sampleOpts = [
+  { value: "peq", label: "Pequeña (n < 30 o celdas con esperadas < 5)" },
+  { value: "med", label: "Mediana (30 ≤ n < 100)" },
+  { value: "gran", label: "Grande (n ≥ 100)" },
+  { value: "nose", label: "No lo sé" },
+];
+
+/* ============================================================
+   GENERADOR DE HIPÓTESIS
+   ============================================================ */
+function getLabelNames(state) {
+  const { objective, design } = state;
+  const paired = design === "pareados" || design === "mixto";
+  if (objective === "una_muestra")   return { a: "Tu variable", b: "Valor teórico", aPh: "Ej.: estrés percibido", bPh: "Ej.: 50 (media poblacional)" };
+  if (objective === "relacion")       return { a: "Variable X", b: "Variable Y", aPh: "Ej.: horas de estudio", bPh: "Ej.: promedio académico" };
+  if (objective === "predecir")       return { a: "Predictor (X)", b: "Variable a predecir (Y)", aPh: "Ej.: ansiedad", bPh: "Ej.: rendimiento" };
+  if (objective === "asociacion_cat") return { a: "Variable categórica 1", b: "Variable categórica 2", aPh: "Ej.: sexo", bPh: "Ej.: tipo de carrera" };
+  if (objective === "supervivencia")  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: tratamiento A", bPh: "Ej.: tratamiento B" };
+  if (objective === "multivariante")  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: experimental", bPh: "Ej.: control" };
+  if (paired) return { a: "Momento / condición 1", b: "Momento / condición 2", aPh: "Ej.: pre-test", bPh: "Ej.: post-test" };
+  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: ruido alto", bPh: "Ej.: ruido bajo" };
+}
+
+function buildHypotheses(state, labels) {
+  const { objective, dvType, ivCount, design, normality } = state;
+  if (!objective || !dvType) return null;
+  const A = labels.a || "A";
+  const B = labels.b || "B";
+  const paired = design === "pareados" || design === "mixto";
+  const nonNormal = normality === "no";
+
+  // UNA MUESTRA
+  if (objective === "una_muestra") {
+    if (dvType === "continua" && !nonNormal) return {
+      parameter: "μ (media poblacional)",
+      h0: { notation: "μ = μ₀", prose: `La media de ${A} es igual al valor teórico (μ₀).` },
+      alternatives: [
+        { id: "bilateral", notation: "μ ≠ μ₀", prose: `La media de ${A} difiere del valor teórico.` },
+        { id: "greater",   notation: "μ > μ₀", prose: `La media de ${A} es mayor al valor teórico.` },
+        { id: "less",      notation: "μ < μ₀", prose: `La media de ${A} es menor al valor teórico.` },
+      ]};
+    if (dvType === "continua" && nonNormal) return {
+      parameter: "Mdn (mediana)",
+      h0: { notation: "Mdn = Mdn₀", prose: `La mediana de ${A} es igual al valor teórico.` },
+      alternatives: [
+        { id: "bilateral", notation: "Mdn ≠ Mdn₀", prose: `La mediana de ${A} difiere del valor teórico.` },
+        { id: "greater",   notation: "Mdn > Mdn₀", prose: `La mediana de ${A} es mayor al valor teórico.` },
+        { id: "less",      notation: "Mdn < Mdn₀", prose: `La mediana de ${A} es menor al valor teórico.` },
+      ]};
+    if (dvType === "dicotomica") return {
+      parameter: "p (proporción)",
+      h0: { notation: "p = p₀", prose: `La proporción en ${A} iguala al valor teórico.` },
+      alternatives: [
+        { id: "bilateral", notation: "p ≠ p₀", prose: `La proporción difiere del valor teórico.` },
+        { id: "greater",   notation: "p > p₀", prose: `La proporción es mayor al valor teórico.` },
+        { id: "less",      notation: "p < p₀", prose: `La proporción es menor al valor teórico.` },
+      ]};
+  }
+
+  // COMPARAR / CAMBIO
+  if (objective === "comparar" || objective === "cambio") {
+    if (ivCount === "factorial") return {
+      parameter: "Efectos del modelo factorial",
+      h0: { notation: "α_i = 0,  β_j = 0,  (αβ)_ij = 0", prose: `No hay efecto del factor A, ni del factor B, ni de la interacción A×B sobre la VD.` },
+      alternatives: [
+        { id: "bilateral", notation: "al menos un efecto ≠ 0", prose: `Al menos uno de los efectos principales o la interacción es distinto de cero.` },
+      ]};
+
+    if (ivCount === "3+") {
+      if (dvType === "continua" && !nonNormal) return {
+        parameter: paired ? "μ_k (medias en k condiciones)" : "μ_k (medias en k grupos)",
+        h0: { notation: "μ₁ = μ₂ = … = μ_k", prose: paired ? `Las medias son iguales en todas las condiciones/momentos.` : `Las medias son iguales en todos los grupos.` },
+        alternatives: [
+          { id: "bilateral", notation: "∃ i, j : μ_i ≠ μ_j", prose: `Al menos un par de medias difiere (ANOVA es ómnibus; luego se usan post hoc).` },
+        ]};
+      if (dvType === "continua" && nonNormal) return {
+        parameter: "Distribución / rangos medios",
+        h0: { notation: "F₁ = F₂ = … = F_k", prose: `Las distribuciones son iguales en todos los grupos/condiciones.` },
+        alternatives: [
+          { id: "bilateral", notation: "al menos una F_i ≠", prose: `Al menos una distribución (o rango medio) difiere del resto.` },
+        ]};
+      if (dvType === "ordinal") return {
+        parameter: "Rango medio",
+        h0: { notation: "R̄₁ = R̄₂ = … = R̄_k", prose: `Los rangos medios son iguales en todos los grupos/condiciones.` },
+        alternatives: [
+          { id: "bilateral", notation: "al menos un R̄_i ≠", prose: `Al menos un grupo difiere en su rango medio.` },
+        ]};
+      if (dvType === "dicotomica" && paired) return {
+        parameter: "Proporciones en k momentos",
+        h0: { notation: "p₁ = p₂ = … = p_k", prose: `La proporción del evento es igual en todas las mediciones.` },
+        alternatives: [
+          { id: "bilateral", notation: "al menos una p_i ≠", prose: `Al menos una proporción difiere entre momentos.` },
+        ]};
+      if (dvType === "dicotomica" || dvType === "nominal") return {
+        parameter: "Independencia",
+        h0: { notation: "VD ⊥ Grupo", prose: `La distribución de la VD es independiente del grupo.` },
+        alternatives: [
+          { id: "bilateral", notation: "VD no es independiente de Grupo", prose: `La distribución de la VD difiere entre grupos.` },
+        ]};
+    }
+
+    if (ivCount === "2") {
+      if (paired || objective === "cambio") {
+        if (dvType === "continua" && !nonNormal) return {
+          parameter: "μ_d (media de las diferencias)",
+          h0: { notation: "μ_d = 0", prose: `No hay cambio entre ${A} y ${B} (promedio de diferencias = 0).` },
+          alternatives: [
+            { id: "bilateral", notation: "μ_d ≠ 0", prose: `Hay cambio entre ${A} y ${B} (sin dirección específica).` },
+            { id: "greater",   notation: "μ_d > 0", prose: `La media en ${A} es mayor que en ${B}.` },
+            { id: "less",      notation: "μ_d < 0", prose: `La media en ${A} es menor que en ${B}.` },
+          ]};
+        if (dvType === "continua" && nonNormal) return {
+          parameter: "Mdn_d (mediana de las diferencias)",
+          h0: { notation: "Mdn_d = 0", prose: `La distribución de diferencias entre ${A} y ${B} está centrada en cero.` },
+          alternatives: [
+            { id: "bilateral", notation: "Mdn_d ≠ 0", prose: `Las diferencias se inclinan sistemáticamente en alguna dirección.` },
+            { id: "greater",   notation: "Mdn_d > 0", prose: `${A} tiende a ser mayor que ${B}.` },
+            { id: "less",      notation: "Mdn_d < 0", prose: `${A} tiende a ser menor que ${B}.` },
+          ]};
+        if (dvType === "ordinal") return {
+          parameter: "Rangos con signo",
+          h0: { notation: "Mdn(A − B) = 0", prose: `No hay diferencia sistemática en rangos entre ${A} y ${B}.` },
+          alternatives: [
+            { id: "bilateral", notation: "Mdn(A − B) ≠ 0", prose: `Hay diferencia sistemática entre ${A} y ${B}.` },
+            { id: "greater",   notation: "Mdn(A − B) > 0", prose: `${A} tiende a rangos mayores que ${B}.` },
+            { id: "less",      notation: "Mdn(A − B) < 0", prose: `${A} tiende a rangos menores que ${B}.` },
+          ]};
+        if (dvType === "dicotomica") return {
+          parameter: "Proporciones de cambio (McNemar)",
+          h0: { notation: "p₁₂ = p₂₁", prose: `Los cambios entre ${A} y ${B} son simétricos: no hay cambio neto.` },
+          alternatives: [
+            { id: "bilateral", notation: "p₁₂ ≠ p₂₁", prose: `Hay un cambio sistemático de una categoría a otra entre ${A} y ${B}.` },
+          ]};
+      } else {
+        if (dvType === "continua" && !nonNormal) return {
+          parameter: "μ (media poblacional)",
+          h0: { notation: `μ_{${A}} = μ_{${B}}`, prose: `Las medias de ${A} y ${B} son iguales.` },
+          alternatives: [
+            { id: "bilateral", notation: `μ_{${A}} ≠ μ_{${B}}`, prose: `Las medias de ${A} y ${B} difieren.` },
+            { id: "greater",   notation: `μ_{${A}} > μ_{${B}}`, prose: `${A} tiene mayor media que ${B}.` },
+            { id: "less",      notation: `μ_{${A}} < μ_{${B}}`, prose: `${A} tiene menor media que ${B}.` },
+          ]};
+        if (dvType === "continua" && nonNormal) return {
+          parameter: "Distribución (Mann-Whitney)",
+          h0: { notation: `F_{${A}} = F_{${B}}`, prose: `Las distribuciones de ${A} y ${B} son iguales.` },
+          alternatives: [
+            { id: "bilateral", notation: `F_{${A}} ≠ F_{${B}}`, prose: `Las distribuciones difieren entre grupos.` },
+            { id: "greater",   notation: `P(X_{${A}} > X_{${B}}) > 0.5`, prose: `Los valores en ${A} tienden a ser mayores que en ${B}.` },
+            { id: "less",      notation: `P(X_{${A}} > X_{${B}}) < 0.5`, prose: `Los valores en ${A} tienden a ser menores que en ${B}.` },
+          ]};
+        if (dvType === "ordinal") return {
+          parameter: "Rango medio",
+          h0: { notation: `R̄_{${A}} = R̄_{${B}}`, prose: `Los rangos medios en ${A} y ${B} son iguales.` },
+          alternatives: [
+            { id: "bilateral", notation: `R̄_{${A}} ≠ R̄_{${B}}`, prose: `Los rangos medios difieren.` },
+            { id: "greater",   notation: `R̄_{${A}} > R̄_{${B}}`, prose: `${A} tiende a puntajes más altos que ${B}.` },
+            { id: "less",      notation: `R̄_{${A}} < R̄_{${B}}`, prose: `${A} tiende a puntajes más bajos que ${B}.` },
+          ]};
+        if (dvType === "dicotomica") return {
+          parameter: "p (proporción del evento)",
+          h0: { notation: `p_{${A}} = p_{${B}}`, prose: `La proporción del evento es igual en ${A} y ${B}.` },
+          alternatives: [
+            { id: "bilateral", notation: `p_{${A}} ≠ p_{${B}}`, prose: `Las proporciones difieren entre ${A} y ${B}.` },
+            { id: "greater",   notation: `p_{${A}} > p_{${B}}`, prose: `${A} presenta mayor proporción del evento.` },
+            { id: "less",      notation: `p_{${A}} < p_{${B}}`, prose: `${A} presenta menor proporción del evento.` },
+          ]};
+        if (dvType === "nominal") return {
+          parameter: "Independencia",
+          h0: { notation: "VD ⊥ Grupo", prose: `La distribución de categorías es independiente del grupo.` },
+          alternatives: [
+            { id: "bilateral", notation: "VD no ⊥ Grupo", prose: `Hay asociación entre la VD y el grupo.` },
+          ]};
+      }
+    }
+  }
+
+  // RELACIÓN
+  if (objective === "relacion") {
+    if (dvType === "continua" && !nonNormal) return {
+      parameter: "ρ (Pearson, correlación poblacional)",
+      h0: { notation: "ρ = 0", prose: `No existe correlación lineal entre ${A} y ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "ρ ≠ 0", prose: `Existe correlación lineal entre ${A} y ${B}.` },
+        { id: "greater",   notation: "ρ > 0", prose: `La correlación es positiva: a mayor ${A}, mayor ${B}.` },
+        { id: "less",      notation: "ρ < 0", prose: `La correlación es negativa: a mayor ${A}, menor ${B}.` },
+      ]};
+    if ((dvType === "continua" && nonNormal) || dvType === "ordinal") return {
+      parameter: "ρ_s (Spearman)",
+      h0: { notation: "ρ_s = 0", prose: `No existe relación monotónica entre ${A} y ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "ρ_s ≠ 0", prose: `Existe relación monotónica entre ${A} y ${B}.` },
+        { id: "greater",   notation: "ρ_s > 0", prose: `Relación monotónica positiva.` },
+        { id: "less",      notation: "ρ_s < 0", prose: `Relación monotónica negativa.` },
+      ]};
+    if (dvType === "dicotomica") return {
+      parameter: "r_pb (correlación punto-biserial)",
+      h0: { notation: "r_pb = 0", prose: `La variable dicotómica ${A} no se relaciona con ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "r_pb ≠ 0", prose: `${A} y ${B} están relacionadas.` },
+        { id: "greater",   notation: "r_pb > 0", prose: `La categoría "1" de ${A} se asocia con valores mayores de ${B}.` },
+        { id: "less",      notation: "r_pb < 0", prose: `La categoría "1" de ${A} se asocia con valores menores de ${B}.` },
+      ]};
+    if (dvType === "nominal") return {
+      parameter: "Independencia",
+      h0: { notation: `${A} ⊥ ${B}`, prose: `${A} y ${B} son independientes.` },
+      alternatives: [
+        { id: "bilateral", notation: `${A} asociada con ${B}`, prose: `Existe asociación entre ${A} y ${B}.` },
+      ]};
+  }
+
+  // PREDECIR
+  if (objective === "predecir") {
+    if (dvType === "continua") return {
+      parameter: "β₁ (coeficiente de regresión)",
+      h0: { notation: "β₁ = 0", prose: `${A} no predice ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "β₁ ≠ 0", prose: `${A} predice ${B}.` },
+        { id: "greater",   notation: "β₁ > 0", prose: `A mayor ${A}, mayor ${B}.` },
+        { id: "less",      notation: "β₁ < 0", prose: `A mayor ${A}, menor ${B}.` },
+      ]};
+    if (dvType === "dicotomica") return {
+      parameter: "OR (odds ratio)",
+      h0: { notation: "OR = 1  (β = 0)", prose: `${A} no modifica las probabilidades de ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "OR ≠ 1", prose: `${A} se asocia con la probabilidad de ${B}.` },
+        { id: "greater",   notation: "OR > 1", prose: `${A} aumenta la probabilidad del evento.` },
+        { id: "less",      notation: "OR < 1", prose: `${A} disminuye la probabilidad del evento.` },
+      ]};
+    if (dvType === "ordinal") return {
+      parameter: "OR acumulado (logit proporcional)",
+      h0: { notation: "OR = 1", prose: `${A} no afecta las categorías ordenadas de ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "OR ≠ 1", prose: `${A} modifica la probabilidad de categorías superiores.` },
+        { id: "greater",   notation: "OR > 1", prose: `${A} aumenta la probabilidad de categorías superiores.` },
+        { id: "less",      notation: "OR < 1", prose: `${A} disminuye la probabilidad de categorías superiores.` },
+      ]};
+    if (dvType === "nominal") return {
+      parameter: "β_j (logit multinomial)",
+      h0: { notation: "β_j = 0  ∀ j", prose: `${A} no afecta la pertenencia a ninguna categoría de ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "∃ j : β_j ≠ 0", prose: `${A} afecta la pertenencia a al menos una categoría.` },
+      ]};
+    if (dvType === "conteo") return {
+      parameter: "IRR (incidence rate ratio)",
+      h0: { notation: "IRR = 1  (β = 0)", prose: `${A} no afecta la tasa de ${B}.` },
+      alternatives: [
+        { id: "bilateral", notation: "IRR ≠ 1", prose: `${A} modifica la tasa de ${B}.` },
+        { id: "greater",   notation: "IRR > 1", prose: `${A} aumenta la tasa de ${B}.` },
+        { id: "less",      notation: "IRR < 1", prose: `${A} reduce la tasa de ${B}.` },
+      ]};
+    if (dvType === "tiempo") return {
+      parameter: "HR (hazard ratio)",
+      h0: { notation: "HR = 1  (β = 0)", prose: `${A} no afecta el riesgo del evento.` },
+      alternatives: [
+        { id: "bilateral", notation: "HR ≠ 1", prose: `${A} modifica el riesgo del evento.` },
+        { id: "greater",   notation: "HR > 1", prose: `${A} aumenta el riesgo del evento.` },
+        { id: "less",      notation: "HR < 1", prose: `${A} reduce el riesgo del evento.` },
+      ]};
+  }
+
+  // ASOCIACIÓN CATEGÓRICAS
+  if (objective === "asociacion_cat") return {
+    parameter: "Independencia",
+    h0: { notation: `${A} ⊥ ${B}`, prose: `${A} y ${B} son independientes.` },
+    alternatives: [
+      { id: "bilateral", notation: `${A} asociada con ${B}`, prose: `Existe asociación entre ${A} y ${B}.` },
+    ]};
+
+  // SUPERVIVENCIA
+  if (objective === "supervivencia") return {
+    parameter: "S(t) — función de supervivencia",
+    h0: { notation: `S_{${A}}(t) = S_{${B}}(t)`, prose: `Las curvas de supervivencia de ${A} y ${B} son iguales.` },
+    alternatives: [
+      { id: "bilateral", notation: `S_{${A}}(t) ≠ S_{${B}}(t)`, prose: `Las curvas de supervivencia difieren entre grupos.` },
+    ]};
+
+  // MULTIVARIANTE
+  if (objective === "multivariante") return {
+    parameter: "𝛍 (vector de medias)",
+    h0: { notation: `𝛍_{${A}} = 𝛍_{${B}}`, prose: `Los vectores de medias de las VDs son iguales entre grupos.` },
+    alternatives: [
+      { id: "bilateral", notation: `𝛍_{${A}} ≠ 𝛍_{${B}}`, prose: `Los vectores de medias difieren entre grupos.` },
+    ]};
+
+  return null;
+}
+
+/* ============================================================
+   MOTOR DE SUGERENCIAS
+   ============================================================ */
+function suggestTests(s) {
+  const out = [];
+  const push = (key, why, level = "principal") => out.push({ key, why, level });
+
+  const { objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV } = s;
+
+  const nonNormal = normality === "no";
+  const paired = design === "pareados" || design === "mixto";
+  const smallSample = sample === "peq";
+
+  // ── UNA MUESTRA ───────────────────────────────────────────
+  if (objective === "una_muestra") {
+    if (dvType === "continua") {
+      push(nonNormal ? "wilcoxon_una_muestra" : "t_una_muestra",
+           "Comparas una media con un valor teórico o poblacional conocido.");
+      if (!nonNormal && smallSample)
+        push("wilcoxon_una_muestra", "Con muestra pequeña, considera también la alternativa no paramétrica.", "alternativa");
+    } else if (dvType === "ordinal") {
+      push("wilcoxon_una_muestra", "Con VD ordinal, compara la mediana con un valor hipotético.");
+    } else if (dvType === "dicotomica") {
+      push("z_proporciones", "Evalúa si la proporción observada difiere de un valor teórico (prueba binomial / Z).");
+    }
+  }
+
+  // ── COMPARAR GRUPOS ───────────────────────────────────────
+  if (objective === "comparar" || objective === "cambio") {
+    const isChange = objective === "cambio" || paired;
+
+    if (dvType === "continua") {
+      if (ivCount === "factorial") {
+        push("anova_factorial", "Tienes dos o más factores cruzados y quieres evaluar efectos principales e interacciones.");
+        if (multipleDV === "si") push("manova", "Si además tienes varias VDs continuas, MANOVA es la extensión natural.", "alternativa");
+        if (hasCovariates === "si") push("ancova", "Añade covariables continuas para controlar varianza residual.", "alternativa");
+        if (design === "mixto") push("modelo_mixto", "Con factores intra e inter sujetos combinados, un modelo mixto es más flexible.", "alternativa");
+      } else if (ivCount === "2") {
+        if (isChange) {
+          push(nonNormal ? "wilcoxon_pareado" : "t_pareada",
+               "Comparas dos mediciones en las mismas personas (pre-post o dos condiciones).");
+          if (nonNormal) push("signos", "Alternativa útil si las diferencias no son simétricas.", "alternativa");
+        } else {
+          if (nonNormal) {
+            push("mann_whitney", "Dos grupos independientes con VD continua no normal.");
+          } else if (equalVar === "no") {
+            push("t_welch", "Dos grupos independientes con medias y varianzas desiguales.");
+            push("mann_whitney", "Alternativa no paramétrica robusta.", "alternativa");
+          } else {
+            push("t_independientes", "Dos grupos independientes con VD continua.");
+            if (smallSample) push("mann_whitney", "Con muestra pequeña, contrasta también con la alternativa no paramétrica.", "alternativa");
+          }
+        }
+      } else if (ivCount === "3+") {
+        if (isChange) {
+          push(nonNormal ? "friedman" : "rm_anova",
+               "Tres o más mediciones/condiciones en las mismas personas.");
+          if (!nonNormal && design === "mixto")
+            push("modelo_mixto", "Si además tienes un factor entre sujetos, un modelo mixto es lo apropiado.", "alternativa");
+        } else {
+          if (nonNormal) {
+            push("kruskal_wallis", "Tres o más grupos independientes con VD no normal.");
+          } else if (equalVar === "no") {
+            push("welch_anova", "ANOVA robusto a heterogeneidad de varianzas.");
+            push("kruskal_wallis", "Alternativa no paramétrica.", "alternativa");
+          } else {
+            push("anova_una_via", "Tres o más grupos independientes con VD continua.");
+          }
+          if (hasCovariates === "si") push("ancova", "Controla covariables continuas relevantes (edad, puntaje basal).", "alternativa");
+        }
+      }
+    }
+
+    if (dvType === "ordinal") {
+      if (ivCount === "2") {
+        push(isChange ? "wilcoxon_pareado" : "mann_whitney",
+             "VD ordinal con dos grupos o condiciones.");
+      } else if (ivCount === "3+") {
+        push(isChange ? "friedman" : "kruskal_wallis",
+             "VD ordinal con tres o más grupos o condiciones.");
+      } else if (ivCount === "factorial") {
+        push("modelo_mixto", "Para diseños factoriales con VD ordinal, considera modelos mixtos ordinales o análisis por rangos.", "principal");
+      }
+    }
+
+    if (dvType === "dicotomica") {
+      if (isChange && ivCount === "2") {
+        push("mcnemar", "Comparas una variable dicotómica en las mismas personas, dos momentos.");
+      } else if (isChange && ivCount === "3+") {
+        push("cochran_q", "Tres o más mediciones dicotómicas en las mismas personas.");
+      } else if (ivCount === "2") {
+        push("chi_independencia", "Comparas una proporción entre dos grupos independientes.");
+        push("z_proporciones", "Equivalente a χ² 2×2; útil cuando quieres interpretar en términos de diferencia de proporciones.", "alternativa");
+        if (smallSample) push("fisher", "Con celdas esperadas < 5 o n pequeño, usa Fisher.", "alternativa");
+      } else if (ivCount === "3+") {
+        push("chi_independencia", "Comparas una proporción entre tres o más grupos independientes.");
+        if (smallSample) push("fisher", "Con frecuencias esperadas bajas, Fisher (exacta R×C) es más seguro.", "alternativa");
+      }
+    }
+
+    if (dvType === "nominal") {
+      push("chi_independencia", "Comparas la distribución de categorías entre grupos.");
+      if (smallSample) push("fisher", "Con celdas pequeñas, prueba exacta de Fisher.", "alternativa");
+    }
+
+    if (dvType === "conteo") {
+      push("poisson", "Modela el conteo en función del grupo; permite comparar tasas.");
+      push("bin_negativa", "Si hay sobredispersión (varianza > media), preferir binomial negativa.", "alternativa");
+    }
+  }
+
+  // ── RELACIONAR ────────────────────────────────────────────
+  if (objective === "relacion") {
+    if (dvType === "continua") {
+      if (nonNormal) {
+        push("spearman", "Relación monotónica entre variables cuantitativas con distribución no normal.");
+        push("kendall", "Alternativa robusta, especialmente con n pequeño o muchos empates.", "alternativa");
+      } else {
+        push("pearson", "Relación lineal entre dos variables cuantitativas con supuesto de normalidad.");
+        push("spearman", "Contrasta con la versión por rangos si sospechas no linealidad o atípicos.", "alternativa");
+      }
+      if (hasCovariates === "si") push("parcial", "Controla el efecto de una tercera variable continua.", "alternativa");
+    } else if (dvType === "ordinal") {
+      push("spearman", "Cuando al menos una variable es ordinal.");
+      push("kendall", "Preferible con muestras pequeñas o muchos empates.", "alternativa");
+    } else if (dvType === "dicotomica") {
+      push("punto_biserial", "Relación entre una variable dicotómica y una continua.");
+    } else if (dvType === "nominal") {
+      push("chi_independencia", "Asociación entre variables categóricas; usar V de Cramer como tamaño de efecto.");
+    }
+  }
+
+  // ── PREDECIR ──────────────────────────────────────────────
+  if (objective === "predecir") {
+    if (dvType === "continua") {
+      push("reg_lineal_simple", "Una VD continua y un predictor.");
+      push("reg_lineal_multiple", "Con varios predictores o covariables.", "alternativa");
+      if (hasCovariates === "si") push("reg_jerarquica", "Evalúa el aporte incremental de bloques de variables.", "alternativa");
+    } else if (dvType === "dicotomica") {
+      push("reg_logistica_bin", "VD con dos categorías (presencia/ausencia, caso/control).");
+    } else if (dvType === "nominal") {
+      push("reg_logistica_multi", "VD con tres o más categorías sin orden.");
+    } else if (dvType === "ordinal") {
+      push("reg_logistica_ord", "VD con categorías ordenadas; verifica odds proporcionales.");
+    } else if (dvType === "conteo") {
+      push("poisson", "Conteo de eventos por unidad de tiempo/persona.");
+      push("bin_negativa", "Si la varianza supera a la media (sobredispersión).", "alternativa");
+    } else if (dvType === "tiempo") {
+      push("cox", "Efecto de predictores sobre el riesgo de un evento.");
+      push("kaplan_meier", "Descripción y comparación de curvas por grupos (log-rank).", "alternativa");
+    }
+  }
+
+  // ── ASOCIACIÓN CATEGÓRICAS ────────────────────────────────
+  if (objective === "asociacion_cat") {
+    push("chi_independencia", "Asociación entre dos variables categóricas.");
+    if (smallSample) push("fisher", "Con celdas esperadas pequeñas, Fisher es preferible.", "alternativa");
+    if (design === "pareados") push("mcnemar", "Si las mediciones son pareadas y dicotómicas, usa McNemar.", "alternativa");
+  }
+
+  // ── SUPERVIVENCIA ─────────────────────────────────────────
+  if (objective === "supervivencia") {
+    push("kaplan_meier", "Curvas de supervivencia y comparación entre grupos (log-rank).");
+    push("cox", "Modelo multivariado para cuantificar el efecto de predictores.", "alternativa");
+  }
+
+  // ── MULTIVARIANTE ─────────────────────────────────────────
+  if (objective === "multivariante") {
+    push("manova", "Varias VDs continuas con uno o más factores.");
+    if (hasCovariates === "si") push("ancova", "Si lo que cambia es solo añadir covariables continuas, considera MANCOVA (extensión).", "alternativa");
+  }
+
+  if (out.length === 0) push("manual", "La combinación actual es ambigua o requiere más detalle metodológico.");
+  return out;
+}
+
+/* ============================================================
+   COMPONENTES UI
+   ============================================================ */
+function Field({ label, children, hint }) {
+  return (
+    <div>
+      <div className="label mb-1.5">{label}</div>
+      {children}
+      {hint && <div className="text-xs text-[color:var(--muted)] mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+function Select({ value, onChange, options, placeholder }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)}>
+      <option value="">{placeholder || "Selecciona…"}</option>
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+function TestCard({ item, idx }) {
+  const t = TESTS[item.key];
+  if (!t) return null;
+  const isPrincipal = item.level === "principal";
+  return (
+    <div className="card p-5 rounded fade-in" style={{animationDelay:`${idx*40}ms`}}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] mono uppercase tracking-wider text-[color:var(--muted)]">{t.family}</span>
+            <span className={`text-[10px] mono uppercase tracking-wider px-1.5 py-0.5 rounded ${isPrincipal ? 'bg-[color:var(--ink)] text-[color:var(--paper)]' : 'chip text-[color:var(--ink-soft)]'}`}>
+              {isPrincipal ? "Principal" : "Alternativa"}
+            </span>
+          </div>
+          <h3 className="serif text-2xl font-medium mt-1.5 leading-tight">{t.name}</h3>
+        </div>
+        <span className="serif text-3xl text-[color:var(--accent)] num leading-none mt-1">{String(idx+1).padStart(2,'0')}</span>
+      </div>
+
+      <p className="text-sm text-[color:var(--ink-soft)] mt-3">{item.why}</p>
+
+      <div className="text-sm mt-4 pt-4 border-t rule">
+        <span className="serif italic text-[color:var(--muted)]">¿Para qué sirve?</span>
+        <p className="mt-1">{t.purpose}</p>
+      </div>
+
+      {t.assumptions && t.assumptions.length > 0 && (
+        <details className="mt-3 group">
+          <summary className="text-sm font-medium flex items-center gap-2">
+            <span className="text-[color:var(--accent)]">▸</span>
+            Supuestos que debes verificar
+          </summary>
+          <ul className="mt-2 pl-5 space-y-1 text-sm text-[color:var(--ink-soft)]">
+            {t.assumptions.map((a,i) => <li key={i} className="list-disc marker:text-[color:var(--accent)]">{a}</li>)}
+          </ul>
+        </details>
+      )}
+
+      <details className="mt-2 group">
+        <summary className="text-sm font-medium flex items-center gap-2">
+          <span className="text-[color:var(--accent)]">▸</span>
+          Ruta en SPSS
+        </summary>
+        <ol className="mt-2 pl-5 space-y-1 text-sm mono text-[color:var(--ink-soft)]">
+          {t.spss.map((s,i) => <li key={i} className="list-decimal">{s}</li>)}
+        </ol>
+        {t.jamovi && t.jamovi !== "—" && (
+          <p className="text-xs mt-2 text-[color:var(--muted)]"><span className="serif italic">Jamovi:</span> {t.jamovi}</p>
+        )}
+        {t.effect && t.effect !== "—" && (
+          <p className="text-xs mt-1 text-[color:var(--muted)]"><span className="serif italic">Tamaño de efecto sugerido:</span> {t.effect}</p>
+        )}
+      </details>
+    </div>
+  );
+}
+
+function HypothesisBuilder({ state, labelA, setLabelA, labelB, setLabelB, direction, setDirection }) {
+  const labels = getLabelNames(state);
+  const h = buildHypotheses(state, { a: labelA || labels.a, b: labelB || labels.b });
+
+  if (!state.objective || !state.dvType) {
+    return (
+      <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">
+        Define primero el <span className="font-medium text-[color:var(--ink)]">objetivo</span> y el <span className="font-medium text-[color:var(--ink)]">tipo de VD</span> para generar las hipótesis formales.
+      </div>
+    );
+  }
+
+  if (!h) {
+    return (
+      <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">
+        Para esta combinación de variables, las hipótesis dependen del test específico. Completa también el número de grupos y el diseño.
+      </div>
+    );
+  }
+
+  // Si la selección actual ya no está entre las alternativas, limpiarla.
+  useEffect(() => {
+    if (direction && h && !h.alternatives.find(a => a.id === direction)) setDirection("");
+  }, [h && h.alternatives.map(a => a.id).join("|"), direction]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-5">
+        <Field label={labels.a}>
+          <input value={labelA} onChange={e => setLabelA(e.target.value)} placeholder={labels.aPh} />
+        </Field>
+        <Field label={labels.b}>
+          <input value={labelB} onChange={e => setLabelB(e.target.value)} placeholder={labels.bPh} />
+        </Field>
+      </div>
+
+      <div className="text-xs mono uppercase tracking-wider text-[color:var(--muted)]">
+        Parámetro · <span className="normal-case tracking-normal">{h.parameter}</span>
+      </div>
+
+      {/* H0 */}
+      <div className="rounded p-5" style={{ background: "var(--paper-2)", border: "1px solid var(--line)" }}>
+        <div className="flex items-baseline gap-3 mb-2">
+          <span className="serif text-3xl font-medium text-[color:var(--ink)]">H<sub className="text-lg">0</sub></span>
+          <span className="text-xs mono uppercase tracking-wider text-[color:var(--muted)]">Hipótesis nula</span>
+        </div>
+        <div className="serif text-2xl leading-snug text-[color:var(--ink)] num">{h.h0.notation}</div>
+        <p className="text-sm text-[color:var(--ink-soft)] mt-2">{h.h0.prose}</p>
+      </div>
+
+      {/* Hα */}
+      <div>
+        <div className="flex items-baseline gap-3 mb-3">
+          <span className="serif text-3xl font-medium text-[color:var(--ink)]">H<sub className="text-lg">a</sub></span>
+          <span className="text-xs mono uppercase tracking-wider text-[color:var(--muted)]">
+            {h.alternatives.length > 1 ? "Selecciona la que se ajuste a tu investigación" : "Hipótesis alterna"}
+          </span>
+        </div>
+        <div className="space-y-2.5">
+          {h.alternatives.map(alt => {
+            const selected = direction === alt.id;
+            const dirTag = alt.id === "bilateral" ? "Bilateral" : alt.id === "greater" ? "Unilateral derecha" : alt.id === "less" ? "Unilateral izquierda" : "Ómnibus";
+            return (
+              <label key={alt.id}
+                className={`block rounded p-4 cursor-pointer transition-all border ${selected ? 'border-[color:var(--accent)] bg-white shadow-sm' : 'border-[color:var(--line)] hover:border-[color:var(--ink-soft)]'}`}
+                style={selected ? { boxShadow: "inset 3px 0 0 var(--accent)" } : {}}
+                onClick={() => setDirection(selected && h.alternatives.length > 1 ? "" : alt.id)}
+              >
+                <div className="flex items-start gap-3">
+                  <input type="radio" className="mt-1.5 accent-[color:var(--accent)]" readOnly checked={selected} style={{width:"auto"}} />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="serif text-xl num">{alt.notation}</div>
+                      <span className="text-[10px] mono uppercase tracking-wider text-[color:var(--muted)]">{dirTag}</span>
+                    </div>
+                    <p className="text-sm text-[color:var(--ink-soft)] mt-1">{alt.prose}</p>
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {direction && (
+        <div className="rounded p-4 fade-in" style={{ background: "rgba(181,71,46,.08)", border: "1px dashed var(--accent-soft)" }}>
+          <div className="text-xs mono uppercase tracking-wider text-[color:var(--accent)] mb-2">Hipótesis seleccionadas</div>
+          <div className="serif text-base leading-relaxed">
+            <div><span className="text-[color:var(--muted)]">H₀:</span> <span className="num">{h.h0.notation}</span></div>
+            <div className="mt-1"><span className="text-[color:var(--muted)]">Hₐ:</span> <span className="num">{h.alternatives.find(a => a.id === direction)?.notation}</span></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [researchQuestion, setRQ] = useState("");
+  const [iv, setIV] = useState("");
+  const [dv, setDV] = useState("");
+  const [objective, setObjective] = useState("");
+  const [dvType, setDvType] = useState("");
+  const [ivCount, setIvCount] = useState("");
+  const [design, setDesign] = useState("");
+  const [normality, setNormality] = useState("");
+  const [equalVar, setEqualVar] = useState("");
+  const [hasCovariates, setHasCovariates] = useState("");
+  const [sample, setSample] = useState("");
+  const [multipleDV, setMultipleDV] = useState("");
+  const [labelA, setLabelA] = useState("");
+  const [labelB, setLabelB] = useState("");
+  const [direction, setDirection] = useState("");
+
+  const state = { objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV };
+  const ready = objective && dvType && (objective === "una_muestra" || objective === "asociacion_cat" || objective === "supervivencia" || objective === "multivariante" || ivCount);
+  const results = useMemo(() => ready ? suggestTests(state) : [], [ready, objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV]);
+
+  const reset = () => {
+    setRQ(""); setIV(""); setDV(""); setObjective(""); setDvType(""); setIvCount("");
+    setDesign(""); setNormality(""); setEqualVar(""); setHasCovariates(""); setSample(""); setMultipleDV("");
+    setLabelA(""); setLabelB(""); setDirection("");
+  };
+
+  return (
+    <div className="max-w-[1300px] mx-auto px-6 md:px-10 py-10 md:py-14">
+      {/* Header */}
+      <header className="flex items-end justify-between pb-8 border-b-2 rule">
+        <div>
+          <div className="flex items-center gap-3 text-xs mono uppercase tracking-[0.2em] text-[color:var(--muted)]">
+            <span>Material didáctico</span>
+            <span className="text-[color:var(--accent)]">●</span>
+            <span>Estadística Inferencial</span>
+          </div>
+          <h1 className="serif text-5xl md:text-6xl font-medium tracking-tight mt-3 leading-[0.95]">
+            Selector de <span className="italic text-[color:var(--accent)]">prueba estadística</span>
+          </h1>
+          <p className="mt-3 text-[color:var(--ink-soft)] max-w-2xl">
+            Herramienta orientativa para estudiantes de Psicología. Responde a partir del objetivo de tu estudio, la naturaleza de tus variables y los supuestos que puedas verificar.
+          </p>
+        </div>
+        <div className="hidden md:block text-right text-xs mono text-[color:var(--muted)]">
+          <div>v 2.1</div>
+          <div>SPSS · Jamovi · H₀ / Hₐ</div>
+        </div>
+      </header>
+
+      <div className="grid lg:grid-cols-5 gap-8 mt-10">
+        {/* Formulario */}
+        <section className="lg:col-span-3 space-y-6">
+          <div className="card rounded p-6 md:p-8">
+            <div className="flex items-baseline justify-between mb-6">
+              <h2 className="serif text-2xl font-medium marker">Describe tu estudio</h2>
+              <span className="text-xs mono text-[color:var(--muted)]">Paso 1</span>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <Field label="Pregunta de investigación">
+                  <textarea value={researchQuestion} onChange={e => setRQ(e.target.value)}
+                    placeholder="Ej.: ¿Existen diferencias en estrés percibido entre estudiantes con alta y baja exposición al ruido?" />
+                </Field>
+              </div>
+              <Field label="Variable independiente (VI)">
+                <input value={iv} onChange={e => setIV(e.target.value)} placeholder="Ej.: nivel de exposición al ruido" />
+              </Field>
+              <Field label="Variable dependiente (VD)">
+                <input value={dv} onChange={e => setDV(e.target.value)} placeholder="Ej.: estrés percibido" />
+              </Field>
+            </div>
+          </div>
+
+          <div className="card rounded p-6 md:p-8">
+            <div className="flex items-baseline justify-between mb-6">
+              <h2 className="serif text-2xl font-medium marker">Características del diseño</h2>
+              <span className="text-xs mono text-[color:var(--muted)]">Paso 2</span>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-5">
+              <Field label="Objetivo analítico">
+                <Select value={objective} onChange={setObjective} options={objectives} />
+              </Field>
+              <Field label="Tipo de variable dependiente">
+                <Select value={dvType} onChange={setDvType} options={dvTypes} />
+              </Field>
+              <Field label="Grupos / niveles a comparar" hint="Solo aplica si comparas o evalúas cambio.">
+                <Select value={ivCount} onChange={setIvCount} options={ivCounts} />
+              </Field>
+              <Field label="Diseño de los datos">
+                <Select value={design} onChange={setDesign} options={designs} />
+              </Field>
+              <Field label="Normalidad de la VD" hint="Shapiro-Wilk (n&lt;50) o K-S con corrección de Lilliefors.">
+                <Select value={normality} onChange={setNormality} options={normalityOpts} />
+              </Field>
+              <Field label="Homogeneidad de varianzas" hint="Prueba de Levene en SPSS.">
+                <Select value={equalVar} onChange={setEqualVar} options={varianceOpts} />
+              </Field>
+              <Field label="Tamaño de muestra">
+                <Select value={sample} onChange={setSample} options={sampleOpts} />
+              </Field>
+              <Field label="¿Controlar covariables continuas?">
+                <Select value={hasCovariates} onChange={setHasCovariates} options={[{value:"si",label:"Sí"},{value:"no",label:"No"}]} />
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="¿Tienes varias variables dependientes continuas?" hint="Activa sugerencias multivariantes (MANOVA).">
+                  <Select value={multipleDV} onChange={setMultipleDV} options={[{value:"si",label:"Sí"},{value:"no",label:"No"}]} />
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          <div className="card rounded p-6 md:p-8">
+            <div className="flex items-baseline justify-between mb-6">
+              <h2 className="serif text-2xl font-medium marker">Planteamiento de hipótesis</h2>
+              <span className="text-xs mono text-[color:var(--muted)]">Paso 3</span>
+            </div>
+            <HypothesisBuilder
+              state={state}
+              labelA={labelA} setLabelA={setLabelA}
+              labelB={labelB} setLabelB={setLabelB}
+              direction={direction} setDirection={setDirection}
+            />
+          </div>
+        </section>
+
+        {/* Resultados */}
+        <aside className="lg:col-span-2 space-y-6">
+          <div className="card rounded p-6">
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="serif text-2xl font-medium marker">Sugerencias</h2>
+              <span className="text-xs mono text-[color:var(--muted)]">Paso 4</span>
+            </div>
+
+            {!ready ? (
+              <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">
+                Completa al menos <span className="font-medium text-[color:var(--ink)]">objetivo</span>, <span className="font-medium text-[color:var(--ink)]">tipo de VD</span> y —si corresponde— <span className="font-medium text-[color:var(--ink)]">grupos</span> para ver recomendaciones.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {results.map((item, idx) => <TestCard key={idx} item={item} idx={idx} />)}
+              </div>
+            )}
+          </div>
+
+          <div className="card rounded p-6">
+            <h3 className="serif text-lg font-medium mb-3">Lectura rápida del caso</h3>
+            <dl className="text-sm space-y-1.5">
+              <div className="flex gap-2"><dt className="label shrink-0 w-24">Pregunta</dt><dd className="text-[color:var(--ink-soft)]">{researchQuestion || "—"}</dd></div>
+              <div className="flex gap-2"><dt className="label shrink-0 w-24">VI</dt><dd className="text-[color:var(--ink-soft)]">{iv || "—"}</dd></div>
+              <div className="flex gap-2"><dt className="label shrink-0 w-24">VD</dt><dd className="text-[color:var(--ink-soft)]">{dv || "—"}</dd></div>
+              {(() => {
+                const h = buildHypotheses(state, { a: labelA || getLabelNames(state).a, b: labelB || getLabelNames(state).b });
+                if (!h) return null;
+                const sel = direction ? h.alternatives.find(a => a.id === direction) : null;
+                return (
+                  <>
+                    <div className="flex gap-2 pt-2 border-t rule mt-2"><dt className="label shrink-0 w-24">H₀</dt><dd className="serif num text-[color:var(--ink)]">{h.h0.notation}</dd></div>
+                    <div className="flex gap-2"><dt className="label shrink-0 w-24">Hₐ</dt><dd className="serif num text-[color:var(--ink)]">{sel ? sel.notation : <span className="text-[color:var(--muted)] not-italic font-sans">— sin seleccionar —</span>}</dd></div>
+                  </>
+                );
+              })()}
+            </dl>
+          </div>
+
+          <div className="rounded p-6 border border-dashed" style={{borderColor:'var(--accent-soft)', background:'rgba(228,168,142,.15)'}}>
+            <h3 className="serif text-lg font-medium mb-2">Nota importante</h3>
+            <p className="text-sm text-[color:var(--ink-soft)]">
+              Esta herramienta <span className="font-medium">orienta</span>; no reemplaza la revisión metodológica. La elección final depende de los supuestos, el tamaño de muestra, la calidad de la medición y el objetivo teórico del estudio.
+            </p>
+            <p className="text-sm text-[color:var(--ink-soft)] mt-2">
+              Recuerda siempre reportar el <span className="serif italic">tamaño de efecto</span> e intervalos de confianza, no solo el valor p.
+            </p>
+          </div>
+
+          <div className="flex gap-3 no-print">
+            <button onClick={() => window.print()} className="flex-1 chip rounded py-2.5 text-sm hover:bg-[color:var(--paper)]">Imprimir / PDF</button>
+            <button onClick={reset} className="flex-1 btn-accent rounded py-2.5 text-sm">Reiniciar</button>
+          </div>
+        </aside>
+      </div>
+
+      <footer className="mt-16 pt-6 border-t rule text-xs mono text-[color:var(--muted)] flex flex-wrap gap-4 justify-between">
+        <span>© Dr. Jose Antonio · Material didáctico para Inferencial (5º sem. Psicología)</span>
+        <span>Árbol de decisión ampliado + generador de hipótesis · v 2.1</span>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
