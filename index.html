@@ -62,6 +62,18 @@
   table.mini th{font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;}
   table.mini td,table.mini th{border-bottom:1px solid var(--line);padding:.5rem .5rem;text-align:left;vertical-align:top;}
   .hl{background:rgba(181,71,46,.09);}
+  .spss-wrap{background:#fff;border:1px solid #cfcfcf;border-radius:4px;padding:.8rem;font-family:Arial,Helvetica,sans-serif;}
+  .spss-cap{font-weight:700;text-align:center;font-size:.85rem;margin-bottom:.45rem;color:#000;}
+  table.spss{border-collapse:collapse;font-size:.74rem;color:#111;margin:0 auto;}
+  table.spss th{background:#f1f1f1;font-weight:400;border:1px solid #c8c8c8;padding:.3rem .45rem;text-align:center;vertical-align:bottom;}
+  table.spss td{border:1px solid #e0e0e0;padding:.3rem .45rem;}
+  table.spss td.rl{background:#f7f7f7;text-align:left;white-space:nowrap;}
+  table.spss td.num-c{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  table.spss td.wrap{text-align:left;min-width:11rem;}
+  .spss-foot{font-size:.7rem;color:#333;margin-top:.45rem;line-height:1.5;}
+  .mk{background:#FFE7A0 !important;}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:1.15rem;height:1.15rem;border-radius:999px;background:var(--accent);color:#fff;font-size:.65rem;font-family:'JetBrains Mono',monospace;margin-left:.3rem;vertical-align:middle;padding:0 .25rem;flex-shrink:0;line-height:1;}
+  li > .badge{margin-left:0;margin-top:.15rem;}
   @media print{
     .no-print{display:none!important;}
     body{background:#fff;}
@@ -1735,6 +1747,933 @@ function FormMode({ raw, setRaw, resolved }) {
   );
 }
 
+
+/* ============================================================
+   GUÍA DE LECTURA DE SALIDAS DE SPSS (tablas de ejemplo anotadas)
+   Celdas: "texto" | { v, m: nº de anotación, rs, cs, th }
+   ============================================================ */
+const M = (v, m) => ({ v, m });
+const TH = (v, extra = {}) => ({ v, th: true, ...extra });
+
+const READERS = {
+  normalidad: {
+    title: "Pruebas de normalidad",
+    menu: "Analizar → Estadísticos descriptivos → Explorar → Gráficos → 'Gráficos con pruebas de normalidad'",
+    tables: [
+      {
+        caption: "Pruebas de normalidad",
+        head: [
+          [{ t: "", rs: 2, cs: 2 }, { t: "Kolmogorov-Smirnov", sup: "a", cs: 3 }, { t: "Shapiro-Wilk", cs: 3 }],
+          [{ t: "Estadístico" }, { t: "gl" }, { t: "Sig." }, { t: "Estadístico" }, { t: "gl" }, { t: "Sig." }],
+        ],
+        rows: [
+          [TH("Estrés percibido", { rs: 2 }), TH("Nocturno"), ".118", M("28", 4), M(".200*", 5), ".962", "28", M(".389", 2)],
+          [TH("Diurno"), ".171", "30", ".025", ".921", "30", M(".029", 3)],
+        ],
+        foot: ["*. Esto es un límite inferior de la significación verdadera.", "a. Corrección de significación de Lilliefors"],
+        mark1: [0, 1],
+      },
+      {
+        caption: "Descriptivos (fragmento, grupo Nocturno)",
+        head: [[{ t: "", cs: 2 }, { t: "Estadístico" }, { t: "Desv. Error" }]],
+        rows: [
+          [TH("Estrés percibido", { rs: 2 }), TH("Asimetría"), M(".412", 6), M(".441", 6)],
+          [TH("Curtosis"), "-.523", ".858"],
+        ],
+      },
+    ],
+    notes: [
+      { m: 1, t: "Elige la columna según tu n: con menos de 50 casos por grupo lee Shapiro-Wilk; Kolmogorov-Smirnov (con Lilliefors) es una opción a partir de 50." },
+      { m: 2, t: "“Sig.” es el valor p. En las pruebas de normalidad H₀ dice que la distribución ES normal. Aquí p = .389 > .05: no se rechaza H₀ → el grupo nocturno se considera normal." },
+      { m: 3, t: "p = .029 ≤ .05: se rechaza H₀ → el grupo diurno NO es normal. Basta con que un grupo no cumpla para revisar la decisión (Q-Q, asimetría, robustez por n o prueba no paramétrica)." },
+      { m: 4, t: "En esta tabla “gl” es el número de casos del grupo, no grados de libertad de una prueba de hipótesis." },
+      { m: 5, t: "“.200*” significa que SPSS solo calcula hasta .200: el p real es igual o mayor. Se reporta como p > .200." },
+      { m: 6, t: "z de asimetría = .412 ÷ .441 = 0.93. Como |z| < 1.96 (n < 50), la asimetría no es preocupante. Haz lo mismo con la curtosis." },
+    ],
+    decide: "Todos los grupos con p > .05 → ruta paramétrica. Algún grupo con p ≤ .05 → con n < 30 usa la prueba no paramétrica; con n ≥ 30 revisa Q-Q y asimetría antes de decidir.",
+    apa: "La prueba de Shapiro-Wilk indicó una distribución normal del estrés en el turno nocturno, W(28) = .96, p = .389, pero no en el diurno, W(30) = .92, p = .029.",
+  },
+
+  levene_t: {
+    title: "Prueba t para muestras independientes (incluye Levene)",
+    menu: "Analizar → Comparar medias → Prueba T para muestras independientes",
+    tables: [{
+      caption: "Prueba de muestras independientes",
+      head: [
+        [{ t: "", rs: 3 }, { t: "Prueba de Levene de igualdad de varianzas", cs: 2 }, { t: "prueba t para la igualdad de medias", cs: 7 }],
+        [{ t: "F", rs: 2 }, { t: "Sig.", rs: 2 }, { t: "t", rs: 2 }, { t: "gl", rs: 2 }, { t: "Sig. (bilateral)", rs: 2 }, { t: "Diferencia de medias", rs: 2 }, { t: "Diferencia de error estándar", rs: 2 }, { t: "95% de intervalo de confianza de la diferencia", cs: 2 }],
+        [{ t: "Inferior" }, { t: "Superior" }],
+      ],
+      rows: [
+        [TH("Se asumen varianzas iguales"), "1.842", M(".180", 1), M("2.87", 3), M("56", 3), M(".006", 2), M("3.82", 4), "1.33", M("1.15", 5), M("6.49", 5)],
+        [TH("No se asumen varianzas iguales"), "", "", "2.89", "55.12", ".005", "3.82", "1.32", "1.17", "6.47"],
+      ],
+    }],
+    notes: [
+      { m: 1, t: "Lee primero Levene. H₀: las varianzas son iguales. p = .180 > .05 → se cumplen → usa la FILA DE ARRIBA. Si fuera ≤ .05, usarías la fila de abajo (corrección de Welch)." },
+      { m: 2, t: "El p de la t está en “Sig. (bilateral)” de la fila elegida: .006 < .05 → las medias difieren significativamente." },
+      { m: 3, t: "Para el reporte necesitas t y gl de la misma fila: t(56) = 2.87." },
+      { m: 4, t: "Diferencia de medias = grupo 1 − grupo 2, según cómo codificaste los grupos. El signo te dice cuál es mayor; revisa la tabla “Estadísticas de grupo” para ver las medias." },
+      { m: 5, t: "Si el intervalo de confianza no incluye el 0, la diferencia es significativa; además indica el rango plausible de la diferencia real." },
+    ],
+    extra: "En SPSS 27 o posterior la columna de significación se divide en “P de un factor” (unilateral) y “P de dos factores” (bilateral). Usa “P de dos factores” salvo que tu hipótesis sea direccional. Esas versiones también muestran la d de Cohen en “Tamaños del efecto de muestras independientes”.",
+    decide: "Levene p > .05 → fila de arriba; Levene p ≤ .05 → fila de abajo. Después: Sig. ≤ .05 → hay diferencia de medias.",
+    apa: "Los internos del turno nocturno reportaron mayor estrés (M = 24.6, DE = 5.1) que los del diurno (M = 20.8, DE = 4.9), t(56) = 2.87, p = .006, d = 0.76.",
+  },
+
+  anova: {
+    title: "ANOVA de un factor (Levene, ANOVA, Welch y post hoc)",
+    menu: "Analizar → Comparar medias → ANOVA de un factor → Opciones (Homogeneidad, Welch) y Post hoc",
+    tables: [
+      {
+        caption: "Prueba de homogeneidad de varianzas",
+        head: [[{ t: "", cs: 2 }, { t: "Estadístico de Levene" }, { t: "gl1" }, { t: "gl2" }, { t: "Sig." }]],
+        rows: [
+          [TH("Estrés percibido", { rs: 2 }), TH("Se basa en la media"), ".946", "2", "87", M(".392", 1)],
+          [TH("Se basa en la mediana"), ".871", "2", "87", ".422"],
+        ],
+      },
+      {
+        caption: "ANOVA",
+        head: [[{ t: "" }, { t: "Suma de cuadrados" }, { t: "gl" }, { t: "Media cuadrática" }, { t: "F" }, { t: "Sig." }]],
+        rows: [
+          [TH("Entre grupos"), M("412.36", 4), M("2", 3), "206.18", M("7.94", 3), M(".001", 2)],
+          [TH("Dentro de grupos"), "2259.10", M("87", 3), "25.97", "", ""],
+          [TH("Total"), M("2671.46", 4), "89", "", "", ""],
+        ],
+      },
+      {
+        caption: "Pruebas robustas de igualdad de las medias",
+        head: [[{ t: "" }, { t: "Estadístico", sup: "a" }, { t: "gl1" }, { t: "gl2" }, { t: "Sig." }]],
+        rows: [
+          [TH("Welch"), M("8.21", 5), "2", "57.33", ".001"],
+          [TH("Brown-Forsythe"), "7.94", "2", "84.12", ".001"],
+        ],
+        foot: ["a. F distribuida de forma asintótica"],
+      },
+      {
+        caption: "Comparaciones múltiples — HSD Tukey",
+        head: [
+          [{ t: "(I) Turno", rs: 2 }, { t: "(J) Turno", rs: 2 }, { t: "Diferencia de medias (I-J)", rs: 2 }, { t: "Desv. Error", rs: 2 }, { t: "Sig.", rs: 2 }, { t: "Intervalo de confianza al 95%", cs: 2 }],
+          [{ t: "Límite inferior" }, { t: "Límite superior" }],
+        ],
+        rows: [
+          [TH("Nocturno", { rs: 2 }), TH("Diurno"), M("4.53*", 6), "1.32", M(".003", 6), "1.39", "7.67"],
+          [TH("Mixto"), "2.10", "1.32", ".255", "-1.04", "5.24"],
+          [TH("Diurno"), TH("Mixto"), "-2.43", "1.32", ".162", "-5.57", ".71"],
+        ],
+        foot: ["*. La diferencia de medias es significativa en el nivel 0.05."],
+      },
+    ],
+    notes: [
+      { m: 1, t: "Levene: lee la fila “Se basa en la media”. p = .392 > .05 → varianzas homogéneas → interpreta la tabla ANOVA y usa Tukey. Si fuera ≤ .05 → interpreta “Pruebas robustas” (Welch) y usa Games-Howell." },
+      { m: 2, t: "Sig. de “Entre grupos” es el p del ANOVA: .001 < .05 → al menos un par de grupos difiere. El ANOVA no dice cuál: para eso está el post hoc." },
+      { m: 3, t: "F se reporta con dos gl: entre grupos (2) y dentro de grupos (87) → F(2, 87) = 7.94." },
+      { m: 4, t: "Tamaño de efecto: η² = SC entre ÷ SC total = 412.36 ÷ 2671.46 = .15. En SPSS 27 o posterior puedes pedirlo en Opciones (estimaciones del tamaño del efecto)." },
+      { m: 5, t: "Si Levene fue significativa, este es el resultado que reportas: F de Welch(2, 57.33) = 8.21." },
+      { m: 6, t: "Post hoc: busca los asteriscos o una Sig. ≤ .05; ya viene corregida por comparaciones múltiples. Solo Nocturno vs. Diurno difiere (p = .003). SPSS repite cada par en ambos sentidos (I−J y J−I): basta leerlo una vez." },
+    ],
+    decide: "Levene → elige la tabla clásica o la robusta → si p ≤ .05 pasa al post hoc → reporta solo los pares significativos con su diferencia e IC.",
+    apa: "Hubo diferencias en el estrés según el turno, F(2, 87) = 7.94, p = .001, η² = .15. La prueba de Tukey mostró mayor estrés en el turno nocturno que en el diurno (diferencia = 4.53, IC 95% [1.39, 7.67], p = .003).",
+  },
+
+  rm: {
+    title: "ANOVA de medidas repetidas (Mauchly y correcciones)",
+    menu: "Analizar → Modelo lineal general → Medidas repetidas",
+    tables: [
+      {
+        caption: "Prueba de esfericidad de Mauchly",
+        head: [
+          [{ t: "Efecto dentro de sujetos", rs: 2 }, { t: "W de Mauchly", rs: 2 }, { t: "Aprox. Chi-cuadrado", rs: 2 }, { t: "gl", rs: 2 }, { t: "Sig.", rs: 2 }, { t: "Épsilon", sup: "b", cs: 3 }],
+          [{ t: "Greenhouse-Geisser" }, { t: "Huynh-Feldt" }, { t: "Límite inferior" }],
+        ],
+        rows: [[TH("Tiempo"), ".812", "6.04", "2", M(".049", 1), M(".842", 2), ".866", ".500"]],
+      },
+      {
+        caption: "Pruebas de efectos dentro de sujetos",
+        head: [[{ t: "Origen", cs: 2 }, { t: "Tipo III de suma de cuadrados" }, { t: "gl" }, { t: "Media cuadrática" }, { t: "F" }, { t: "Sig." }]],
+        rows: [
+          [TH("Tiempo", { rs: 4 }), TH("Esfericidad asumida"), "186.40", "2", "93.20", "6.71", ".002"],
+          [TH("Greenhouse-Geisser"), "186.40", "1.684", "110.69", "6.71", ".004"],
+          [TH("Huynh-Feldt"), M("186.40", 4), M("1.732", 3), "107.62", M("6.71", 3), M(".003", 3)],
+          [TH("Límite inferior"), "186.40", "1.000", "186.40", "6.71", ".014"],
+          [TH("Error(Tiempo)", { rs: 2 }), TH("Esfericidad asumida"), "805.60", "58", "13.89", "", ""],
+          [TH("Huynh-Feldt"), M("805.60", 4), M("50.23", 3), "16.04", "", ""],
+        ],
+      },
+    ],
+    notes: [
+      { m: 1, t: "Mauchly. H₀: se cumple la esfericidad. p = .049 ≤ .05 → NO se cumple → no leas la fila “Esfericidad asumida”. (Con solo dos mediciones Mauchly no se calcula: la esfericidad se cumple siempre.)" },
+      { m: 2, t: "Elige la corrección con épsilon de Greenhouse-Geisser: si ε < .75 usa Greenhouse-Geisser; si ε ≥ .75 usa Huynh-Feldt. Aquí ε = .842 → Huynh-Feldt." },
+      { m: 3, t: "Lee F, gl y Sig. en la fila de la corrección elegida: los gl son decimales porque están corregidos. Necesitas también los gl de error de esa misma fila: F(1.73, 50.23) = 6.71, p = .003." },
+      { m: 4, t: "η² parcial = SC efecto ÷ (SC efecto + SC error) = 186.40 ÷ (186.40 + 805.60) = .19." },
+    ],
+    decide: "Mauchly p > .05 → “Esfericidad asumida”. Mauchly p ≤ .05 → Greenhouse-Geisser (ε < .75) o Huynh-Feldt (ε ≥ .75). Si el efecto es significativo → comparaciones por pares con Bonferroni.",
+    apa: "Con la corrección de Huynh-Feldt (ε = .87), el estrés cambió a lo largo de las mediciones, F(1.73, 50.23) = 6.71, p = .003, η²p = .19.",
+  },
+
+  t_pareada: {
+    title: "Prueba t para muestras relacionadas",
+    menu: "Analizar → Comparar medias → Prueba T para muestras relacionadas",
+    tables: [{
+      caption: "Prueba de muestras emparejadas",
+      head: [
+        [{ t: "", rs: 3 }, { t: "Diferencias emparejadas", cs: 5 }, { t: "t", rs: 3 }, { t: "gl", rs: 3 }, { t: "Sig. (bilateral)", rs: 3 }],
+        [{ t: "Media", rs: 2 }, { t: "Desv. Desviación", rs: 2 }, { t: "Desv. Error promedio", rs: 2 }, { t: "95% de intervalo de confianza de la diferencia", cs: 2 }],
+        [{ t: "Inferior" }, { t: "Superior" }],
+      ],
+      rows: [[TH("Par 1  Pre − Post"), M("3.40", 1), M("4.12", 4), ".75", M("1.86", 3), M("4.94", 3), M("4.52", 5), M("29", 5), M(".000", 2)]],
+    }],
+    notes: [
+      { m: 1, t: "Media de las diferencias = Pre − Post. Positiva → los puntajes bajaron después de la intervención; negativa → subieron." },
+      { m: 2, t: "“.000” NUNCA significa p = 0: SPSS redondea a tres decimales. Se reporta como p < .001." },
+      { m: 3, t: "El IC de la diferencia no incluye el 0 → el cambio es significativo." },
+      { m: 4, t: "d de Cohen para medidas repetidas = media de diferencias ÷ DE de diferencias = 3.40 ÷ 4.12 = 0.83." },
+      { m: 5, t: "gl = n − 1 (30 participantes). Se reporta t(29) = 4.52." },
+    ],
+    decide: "Sig. ≤ .05 → hubo cambio significativo; la dirección la da el signo de la media de diferencias.",
+    apa: "El estrés disminuyó de la medición previa (M = 23.1, DE = 5.0) a la posterior (M = 19.7, DE = 4.6), t(29) = 4.52, p < .001, d = 0.83.",
+  },
+
+  noparam: {
+    title: "Pruebas no paramétricas (Mann-Whitney, Wilcoxon, Kruskal-Wallis, Friedman)",
+    menu: "Analizar → Pruebas no paramétricas → Muestras independientes / relacionadas",
+    tables: [
+      {
+        caption: "Resumen de prueba de hipótesis",
+        head: [[{ t: "" }, { t: "Hipótesis nula" }, { t: "Prueba" }, { t: "Sig.", sup: "a,b" }, { t: "Decisión" }]],
+        rows: [[TH("1"), M("La distribución de Estrés es la misma entre categorías de Turno.", 1), "Prueba U de Mann-Whitney para muestras independientes", M(".012", 2), M("Rechace la hipótesis nula.", 2)]],
+        foot: ["a. El nivel de significación es .050.", "b. Se muestra la significación asintótica."],
+      },
+      {
+        caption: "Estadísticos de prueba (cuadros de diálogo antiguos)",
+        head: [[{ t: "" }, { t: "Estrés percibido" }]],
+        rows: [
+          [TH("U de Mann-Whitney"), M("268.500", 3)],
+          [TH("W de Wilcoxon"), "674.500"],
+          [TH("Z"), M("-2.510", 3)],
+          [TH("Sig. asintótica (bilateral)"), M(".012", 3)],
+        ],
+      },
+    ],
+    notes: [
+      { m: 1, t: "SPSS escribe la H₀ por ti: estas pruebas comparan distribuciones o rangos, no medias. Por eso describe los grupos con medianas y rangos intercuartiles." },
+      { m: 2, t: "La columna “Decisión” ya aplica la regla: “Rechace” = p ≤ .05 (hay diferencia); “Conserve” = p > .05." },
+      { m: 3, t: "Para el reporte necesitas U, Z y p. Tamaño de efecto r = |Z| ÷ √N = 2.51 ÷ √58 = .33." },
+      { m: 4, t: "Kruskal-Wallis y Friedman: misma lógica; el estadístico es H (o χ² de Friedman) con gl = k − 1. Si rechazas, haz doble clic en la tabla para abrir el Visor de modelos y revisa “Comparaciones por parejas”: lee la columna “Sig. ajustada”, no “Sig.”." },
+    ],
+    decide: "Decisión “Rechace” → hay diferencia. Con 3+ grupos o momentos → revisa las comparaciones por parejas (Sig. ajustada).",
+    apa: "El estrés fue mayor en el turno nocturno (Mdn = 25) que en el diurno (Mdn = 21), U = 268.50, z = −2.51, p = .012, r = .33.",
+  },
+
+  chi: {
+    title: "Chi-cuadrada y prueba exacta de Fisher",
+    menu: "Analizar → Estadísticos descriptivos → Tablas cruzadas → Estadísticos (Chi-cuadrado, Phi y V de Cramer) → Casillas (Esperado)",
+    tables: [
+      {
+        caption: "Pruebas de chi-cuadrado",
+        head: [[{ t: "" }, { t: "Valor" }, { t: "gl" }, { t: "Significación asintótica (bilateral)" }, { t: "Significación exacta (bilateral)" }, { t: "Significación exacta (unilateral)" }]],
+        rows: [
+          [TH("Chi-cuadrado de Pearson"), M("5.184ᵃ", 2), M("1", 2), M(".023", 2), "", ""],
+          [TH("Corrección de continuidadᵇ"), "4.215", "1", ".040", "", ""],
+          [TH("Razón de verosimilitud"), M("5.262", 4), "1", ".022", "", ""],
+          [TH("Prueba exacta de Fisher"), "", "", "", M(".036", 3), ".020"],
+          [TH("Asociación lineal por lineal"), M("5.120", 4), "1", ".024", "", ""],
+          [TH("N de casos válidos"), "80", "", "", "", ""],
+        ],
+        foot: [{ v: "a. 0 casillas (0.0%) han esperado un recuento menor que 5. El recuento mínimo esperado es 11.25.", m: 1 }, "b. Sólo se ha calculado para una tabla 2x2"],
+      },
+      {
+        caption: "Medidas simétricas",
+        head: [[{ t: "", cs: 2 }, { t: "Valor" }, { t: "Significación aproximada" }]],
+        rows: [
+          [TH("Nominal por Nominal", { rs: 2 }), TH("Phi"), M(".255", 5), ".023"],
+          [TH("V de Cramer"), ".255", ".023"],
+        ],
+      },
+    ],
+    notes: [
+      { m: 1, t: "Empieza por la nota “a” al pie: dice cuántas casillas tienen esperada < 5. Si es 20% o menos (y ninguna < 1) → lee Chi-cuadrado de Pearson. Si es más del 20% → en 2×2 lee Fisher." },
+      { m: 2, t: "Fila “Chi-cuadrado de Pearson”: Valor = χ², gl y p (significación asintótica). p = .023 ≤ .05 → hay asociación entre las variables." },
+      { m: 3, t: "Si no se cumplen las esperadas, el p que reportas es el de Fisher, “Significación exacta (bilateral)”." },
+      { m: 4, t: "Puedes ignorar “Razón de verosimilitud” y “Asociación lineal por lineal” (esta última solo tiene sentido si ambas variables son ordinales)." },
+      { m: 5, t: "Tamaño de efecto: Phi en 2×2, V de Cramer en tablas mayores. .255 con gl* = 1 es un efecto pequeño a mediano." },
+    ],
+    extra: "Si la tabla es mayor que 2×2 y χ² es significativa, pide en Casillas los residuos “tipificados corregidos”: las celdas con |z| > 1.96 son las que explican la asociación.",
+    decide: "Nota “a” → elige Pearson o Fisher → p ≤ .05 → hay asociación → reporta Phi o V de Cramer y los porcentajes por grupo.",
+    apa: "Se encontró asociación entre el turno y la presencia de burnout, χ²(1, N = 80) = 5.18, p = .023, φ = .25.",
+  },
+
+  correlacion: {
+    title: "Correlaciones (Pearson, Spearman)",
+    menu: "Analizar → Correlaciones → Bivariadas",
+    tables: [{
+      caption: "Correlaciones",
+      head: [[{ t: "", cs: 2 }, { t: "Horas de sueño" }, { t: "Estrés percibido" }]],
+      rows: [
+        [TH("Horas de sueño", { rs: 3 }), TH("Correlación de Pearson"), M("1", 1), M("-.412**", 2)],
+        [TH("Sig. (bilateral)"), "", M(".001", 3)],
+        [TH("N"), "64", M("64", 4)],
+        [TH("Estrés percibido", { rs: 3 }), TH("Correlación de Pearson"), "-.412**", "1"],
+        [TH("Sig. (bilateral)"), ".001", ""],
+        [TH("N"), "64", "64"],
+      ],
+      foot: ["**. La correlación es significativa en el nivel 0,01 (bilateral)."],
+    }],
+    notes: [
+      { m: 1, t: "La matriz es simétrica: la diagonal siempre vale 1 (cada variable consigo misma). Lee solo una de las celdas fuera de la diagonal." },
+      { m: 2, t: "El signo indica la dirección (negativo: a más sueño, menos estrés). La magnitud orienta así: .10 pequeña, .30 mediana, .50 grande. r² = .17 → comparten 17% de varianza." },
+      { m: 3, t: "Sig. (bilateral) es el p: .001 < .05 → la correlación es significativa (los asteriscos lo resumen)." },
+      { m: 4, t: "gl = N − 2 = 62. En Spearman la tabla es igual, con el rótulo “Rho de Spearman”." },
+    ],
+    decide: "p ≤ .05 → la correlación es distinta de 0. Interpreta dirección y magnitud; la correlación no implica causalidad.",
+    apa: "Las horas de sueño se correlacionaron negativamente con el estrés percibido, r(62) = −.41, p = .001.",
+  },
+
+  regresion: {
+    title: "Regresión lineal",
+    menu: "Analizar → Regresión → Lineales → Estadísticos (Durbin-Watson, Diagnósticos de colinealidad)",
+    tables: [
+      {
+        caption: "Resumen del modelo",
+        head: [[{ t: "Modelo" }, { t: "R" }, { t: "R cuadrado" }, { t: "R cuadrado ajustado" }, { t: "Error estándar de la estimación" }, { t: "Durbin-Watson" }]],
+        rows: [[TH("1"), ".584ᵃ", ".341", M(".319", 1), "4.10", M("1.94", 5)]],
+      },
+      {
+        caption: "ANOVA",
+        head: [[{ t: "Modelo", cs: 2 }, { t: "Suma de cuadrados" }, { t: "gl" }, { t: "Media cuadrática" }, { t: "F" }, { t: "Sig." }]],
+        rows: [
+          [TH("1", { rs: 3 }), TH("Regresión"), "512.30", M("2", 2), "256.15", M("15.26", 2), M(".000ᵇ", 2)],
+          [TH("Residuo"), "990.60", M("59", 2), "16.79", "", ""],
+          [TH("Total"), "1502.90", "61", "", "", ""],
+        ],
+      },
+      {
+        caption: "Coeficientes",
+        head: [
+          [{ t: "Modelo", rs: 2, cs: 2 }, { t: "Coeficientes no estandarizados", cs: 2 }, { t: "Coeficientes estandarizados" }, { t: "t", rs: 2 }, { t: "Sig.", rs: 2 }, { t: "Estadísticas de colinealidad", cs: 2 }],
+          [{ t: "B" }, { t: "Desv. Error" }, { t: "Beta" }, { t: "Tolerancia" }, { t: "VIF" }],
+        ],
+        rows: [
+          [TH("1", { rs: 3 }), TH("(Constante)"), "8.42", "2.91", "", "2.89", ".005", "", ""],
+          [TH("Carga laboral"), M(".48", 3), ".11", M(".46", 3), "4.36", M(".000", 3), ".91", M("1.10", 4)],
+          [TH("Apoyo social"), "-.29", ".12", "-.26", "-2.42", ".019", ".91", "1.10"],
+        ],
+      },
+    ],
+    notes: [
+      { m: 1, t: "R² ajustado: proporción de varianza de la VD explicada por el modelo, corregida por el número de predictores. .319 → 32%." },
+      { m: 2, t: "La tabla ANOVA prueba si el modelo en conjunto predice mejor que nada: F(2, 59) = 15.26, p < .001." },
+      { m: 3, t: "Por predictor: B = cambio en la VD por cada unidad del predictor (en unidades originales); Beta permite comparar la importancia entre predictores; Sig. indica si cada uno aporta, controlando los demás." },
+      { m: 4, t: "Multicolinealidad: VIF < 10 y Tolerancia > .10 están bien (criterio estricto: VIF < 5)." },
+      { m: 5, t: "Independencia de residuos: Durbin-Watson cercano a 2 (entre 1.5 y 2.5) es aceptable." },
+    ],
+    decide: "Modelo significativo (ANOVA) → interpreta R² ajustado → revisa la Sig. de cada predictor → verifica VIF, Durbin-Watson y los gráficos de residuos.",
+    apa: "El modelo explicó 32% de la varianza del burnout, F(2, 59) = 15.26, p < .001, R²aj = .32. La carga laboral (β = .46, p < .001) y el apoyo social (β = −.26, p = .019) fueron predictores significativos.",
+  },
+
+  logistica: {
+    title: "Regresión logística binaria",
+    menu: "Analizar → Regresión → Logística binaria → Opciones (Bondad de ajuste de Hosmer-Lemeshow, IC para exp(B))",
+    tables: [
+      {
+        caption: "Prueba de Hosmer y Lemeshow",
+        head: [[{ t: "Paso" }, { t: "Chi-cuadrado" }, { t: "gl" }, { t: "Sig." }]],
+        rows: [[TH("1"), "6.41", "8", M(".601", 1)]],
+      },
+      {
+        caption: "Resumen del modelo",
+        head: [[{ t: "Paso" }, { t: "-2 log de la verosimilitud" }, { t: "R cuadrado de Cox y Snell" }, { t: "R cuadrado de Nagelkerke" }]],
+        rows: [[TH("1"), "98.40ᵃ", ".21", M(".29", 2)]],
+      },
+      {
+        caption: "Variables en la ecuación",
+        head: [[{ t: "", cs: 2 }, { t: "B" }, { t: "Error estándar" }, { t: "Wald" }, { t: "gl" }, { t: "Sig." }, { t: "Exp(B)" }]],
+        rows: [
+          [TH("Paso 1ᵃ", { rs: 2 }), TH("Edad"), ".062", ".024", "6.67", "1", M(".010", 3), M("1.064", 3)],
+          [TH("Constante"), "-3.10", "1.12", "7.66", "1", ".006", ".045"],
+        ],
+      },
+    ],
+    notes: [
+      { m: 1, t: "Hosmer-Lemeshow es al revés de lo habitual: H₀ dice que el modelo ajusta bien. p = .601 > .05 → buen ajuste." },
+      { m: 2, t: "R² de Nagelkerke es un pseudo-R²: orienta sobre la capacidad explicativa (29%), pero no se interpreta igual que el R² de la regresión lineal." },
+      { m: 3, t: "Exp(B) es la razón de momios (OR). 1.064 → por cada año más, los momios del evento aumentan 6.4%. OR > 1 aumenta el riesgo, OR < 1 lo reduce. Sig. es el p de Wald." },
+    ],
+    decide: "Revisa ajuste (Hosmer-Lemeshow p > .05) → Nagelkerke → Exp(B) y su IC 95% (si no incluye 1, el predictor es significativo).",
+    apa: "La edad predijo la presencia de burnout, OR = 1.06, IC 95% [1.02, 1.12], p = .010; el modelo mostró ajuste adecuado, χ²HL(8) = 6.41, p = .601.",
+  },
+};
+
+const READER_ORDER = ["normalidad", "levene_t", "anova", "rm", "t_pareada", "noparam", "chi", "correlacion", "regresion", "logistica"];
+
+function readersFor(s, results) {
+  const keys = results.map(r => r.key);
+  const has = (...k) => k.some(x => keys.includes(x));
+  const out = [];
+  if (contPath(s) || (s.objective === "predecir" && s.dvType === "continua")) out.push("normalidad");
+  if (has("t_independientes", "t_welch")) out.push("levene_t");
+  if (has("anova_una_via", "welch_anova", "anova_factorial", "ancova")) out.push("anova");
+  if (has("rm_anova")) out.push("rm");
+  if (has("t_pareada")) out.push("t_pareada");
+  if (has("mann_whitney", "wilcoxon_pareado", "kruskal_wallis", "friedman", "wilcoxon_una_muestra", "signos")) out.push("noparam");
+  if (has("chi_independencia", "fisher", "chi_bondad", "z_proporciones")) out.push("chi");
+  if (has("pearson", "spearman", "kendall", "parcial", "punto_biserial")) out.push("correlacion");
+  if (has("reg_lineal_simple", "reg_lineal_multiple", "reg_jerarquica")) out.push("regresion");
+  if (has("reg_logistica_bin")) out.push("logistica");
+  return READER_ORDER.filter(k => out.includes(k));
+}
+
+function Badge({ n }) {
+  return <span className="badge">{n}</span>;
+}
+
+function SpssTable({ tb }) {
+  const cell = (c, i, isHead) => {
+    if (isHead) {
+      return <th key={i} colSpan={c.cs || 1} rowSpan={c.rs || 1}>{c.t}{c.sup && <sup>{c.sup}</sup>}</th>;
+    }
+    const o = typeof c === "string" ? { v: c } : c;
+    const long = typeof o.v === "string" && o.v.length > 24;
+    const cls = [o.th ? "rl" : (long ? "wrap" : "num-c"), o.m ? "mk" : ""].join(" ");
+    return (
+      <td key={i} className={cls} colSpan={o.cs || 1} rowSpan={o.rs || 1}>
+        {o.v}{o.m && <Badge n={o.m} />}
+      </td>
+    );
+  };
+  return (
+    <div className="spss-wrap">
+      <div className="spss-cap">{tb.caption}</div>
+      <div className="overflow-x-auto">
+        <table className="spss">
+          <thead>{tb.head.map((r, i) => <tr key={i}>{r.map((c, j) => cell(c, j, true))}</tr>)}</thead>
+          <tbody>{tb.rows.map((r, i) => <tr key={i}>{r.map((c, j) => cell(c, j, false))}</tr>)}</tbody>
+        </table>
+      </div>
+      {tb.foot && (
+        <div className="spss-foot">
+          {tb.foot.map((f, i) => typeof f === "string"
+            ? <div key={i}>{f}</div>
+            : <div key={i} className="mk inline-block">{f.v}<Badge n={f.m} /></div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpssReader({ id, open }) {
+  const r = READERS[id];
+  return (
+    <details className="card rounded p-0 overflow-hidden" open={open}>
+      <summary className="px-6 py-4 flex items-center justify-between gap-3 hover:bg-[color:var(--paper-2)]">
+        <div>
+          <div className="text-[11px] mono uppercase tracking-wider text-[color:var(--accent)]">Cómo leer la salida</div>
+          <div className="serif text-xl font-medium leading-tight">{r.title}</div>
+        </div>
+        <span className="text-[color:var(--accent)] text-lg">▾</span>
+      </summary>
+      <div className="px-6 pb-6">
+        <p className="text-xs mono text-[color:var(--muted)] mb-4">{r.menu}</p>
+        <div className="grid xl:grid-cols-5 gap-6">
+          <div className="xl:col-span-3 space-y-4">
+            {r.tables.map((tb, i) => <SpssTable key={i} tb={tb} />)}
+            <p className="text-[11px] text-[color:var(--muted)]">Datos de ejemplo. Los rótulos pueden variar ligeramente según la versión de SPSS; en algunas configuraciones el separador decimal es coma.</p>
+          </div>
+          <div className="xl:col-span-2 space-y-3">
+            <ol className="space-y-2.5">
+              {r.notes.map(n => (
+                <li key={n.m} className="flex gap-2.5 text-sm text-[color:var(--ink-soft)]">
+                  <Badge n={n.m} /><span>{n.t}</span>
+                </li>
+              ))}
+            </ol>
+            {r.extra && <p className="text-xs text-[color:var(--ink-soft)] border-l-2 border-[color:var(--line)] pl-3">{r.extra}</p>}
+            <div className="rounded p-3" style={{ background: "var(--paper-2)" }}>
+              <div className="label mb-1">Decisión</div>
+              <p className="text-sm">{r.decide}</p>
+            </div>
+            <div className="rounded p-3" style={{ background: "rgba(181,71,46,.08)", border: "1px dashed var(--accent-soft)" }}>
+              <div className="label mb-1" style={{ color: "var(--accent)" }}>Cómo reportarlo (APA 7)</div>
+              <p className="text-sm serif">{r.apa}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function SpssKeys() {
+  return (
+    <div className="card rounded p-6">
+      <div className="text-[11px] mono uppercase tracking-wider text-[color:var(--accent)]">Antes de leer cualquier tabla</div>
+      <h3 className="serif text-2xl font-medium mt-1 mb-4">Cinco claves de la salida de SPSS</h3>
+      <div className="grid md:grid-cols-2 gap-4 text-sm text-[color:var(--ink-soft)]">
+        <div><b className="text-[color:var(--ink)]">1. “Sig.” es el valor p.</b> Se compara con α = .05: p ≤ .05 → se rechaza H₀.</div>
+        <div><b className="text-[color:var(--ink)]">2. “.000” no es cero.</b> SPSS redondea a tres decimales: repórtalo como p &lt; .001.</div>
+        <div><b className="text-[color:var(--ink)]">3. En los supuestos quieres p &gt; .05.</b> En normalidad, Levene, Mauchly y Hosmer-Lemeshow la H₀ dice que el supuesto se cumple; un p no significativo es la buena noticia.</div>
+        <div><b className="text-[color:var(--ink)]">4. En tu prueba principal, p ≤ .05 apoya tu Hₐ.</b> Pero revisa siempre el tamaño de efecto: significativo no es lo mismo que importante.</div>
+        <div><b className="text-[color:var(--ink)]">5. Los gl se reportan.</b> Entre paréntesis después del estadístico: t(56), F(2, 87), χ²(1, N = 80), r(62).</div>
+        <div><b className="text-[color:var(--ink)]">Formato APA.</b> Estadísticos en cursiva; sin cero inicial en valores que no pueden pasar de 1 (p, r, β, η²): p = .023, no 0.023.</div>
+      </div>
+    </div>
+  );
+}
+
+function SpssSection({ ids, ready }) {
+  const [all, setAll] = useState(false);
+  const show = all || !ready || ids.length === 0 ? READER_ORDER : ids;
+  return (
+    <section className="mt-12">
+      <div className="flex flex-wrap items-baseline justify-between gap-3 pb-4 mb-6 border-b rule">
+        <h2 className="serif text-3xl font-medium">Cómo leer la salida de SPSS</h2>
+        <div className="flex items-center gap-3">
+          {ready && ids.length > 0 && (
+            <button onClick={() => setAll(!all)} className="text-xs chip rounded px-3 py-1.5 hover:bg-[color:var(--paper)]">
+              {all ? "Mostrar solo las de mi caso" : "Ver todas las guías"}
+            </button>
+          )}
+          <span className="text-xs mono text-[color:var(--muted)]">Paso 6</span>
+        </div>
+      </div>
+      <div className="space-y-5">
+        <SpssKeys />
+        {show.map(id => <SpssReader key={id + (all ? "a" : "c")} id={id} open={ready && ids.includes(id) && !all} />)}
+      </div>
+    </section>
+  );
+}
+
+
+/* ============================================================
+   MODO ESTADÍSTICA DESCRIPTIVA
+   ============================================================ */
+const DOPT = {
+  dObj: [
+    { value: "una", label: "Una variable a la vez", desc: "Ej.: edad, sexo, nivel de dolor, número de consultas." },
+    { value: "dos", label: "Dos variables juntas", desc: "Comparar grupos o ver cómo se relacionan, sin probar hipótesis." },
+  ],
+  dType: [
+    { value: "nominal", label: "Nominal", desc: "Categorías sin orden: sexo, carrera, tipo de diagnóstico." },
+    { value: "ordinal", label: "Ordinal", desc: "Categorías ordenadas: nivel de dolor, un ítem Likert, nivel socioeconómico." },
+    { value: "discreta", label: "Cuantitativa discreta", desc: "Conteos con valores enteros: número de hijos, consultas al año." },
+    { value: "continua", label: "Cuantitativa continua", desc: "Mediciones: edad, peso, presión arterial, puntaje total de una escala." },
+  ],
+  dPair: [
+    { value: "catcat", label: "Categórica × categórica", desc: "Ej.: sexo y especialidad elegida; turno y burnout (sí/no)." },
+    { value: "cuantcat", label: "Cuantitativa por grupos", desc: "Ej.: estrés según turno; glucosa según tratamiento." },
+    { value: "cuantcuant", label: "Cuantitativa × cuantitativa", desc: "Ej.: horas de sueño y estrés; IMC y presión arterial." },
+  ],
+  dValues: [
+    { value: "pocos", label: "Pocos valores distintos", desc: "Unos 15 o menos (0, 1, 2, 3…)." },
+    { value: "muchos", label: "Muchos valores distintos", desc: "Conviene agruparlos en intervalos." },
+  ],
+  dShape: [
+    { value: "simetrica", label: "Aproximadamente simétrica", desc: "Histograma en forma de campana, sin atípicos extremos." },
+    { value: "asimetrica", label: "Asimétrica o con atípicos", desc: "Una cola larga hacia un lado, o valores muy alejados." },
+    { value: "nose", label: "Aún no lo sé", desc: "Te diremos cómo revisarlo." },
+  ],
+};
+
+const isQuant = d => ["discreta", "continua"].includes(d.dType) || ["cuantcat", "cuantcuant"].includes(d.dPair);
+
+const DSTEPS = [
+  { field: "dObj", short: "Qué describes", q: "¿Qué quieres describir?", help: "La estadística descriptiva resume y presenta los datos de tu muestra; no generaliza a la población.", options: DOPT.dObj, when: () => true },
+  { field: "dType", short: "Tipo de variable", q: "¿Qué tipo de variable es?", help: "El nivel de medición decide qué tablas, gráficas y medidas son válidas.", options: DOPT.dType, when: d => d.dObj === "una" },
+  { field: "dPair", short: "Combinación", q: "¿Qué tipo de variables combinas?", help: "Si una variable define grupos (sexo, turno, tratamiento), es la categórica.", options: DOPT.dPair, when: d => d.dObj === "dos" },
+  { field: "dValues", short: "Valores distintos", q: "¿Cuántos valores distintos toma tu variable?", help: "Decide si la tabla de frecuencias lleva cada valor o intervalos.", options: DOPT.dValues, when: d => d.dType === "discreta" },
+  { field: "dShape", short: "Forma", q: "¿Cómo es la forma de la distribución?",
+    help: () => <span>Revísalo con un histograma y la z de asimetría (asimetría ÷ su error estándar): |z| &gt; 1.96 con n &lt; 50, o &gt; 3.29 con n entre 50 y 300, indica asimetría. En SPSS: <span className="mono">Frecuencias → Estadísticos → Asimetría</span> y <span className="mono">Gráficos → Histogramas</span>.</span>,
+    options: DOPT.dShape, when: d => isQuant(d) && (d.dType !== "discreta" || !!d.dValues) },
+];
+
+function dResolve(raw) {
+  const clean = {}; const steps = [];
+  for (const st of DSTEPS) {
+    if (st.when(clean)) {
+      steps.push(st);
+      const v = raw[st.field];
+      if (v && getOpts(st, clean).some(o => o.value === v)) clean[st.field] = v;
+    }
+  }
+  return { clean, steps };
+}
+
+/* ---------- recomendaciones ---------- */
+function descAdvice(d) {
+  const S = []; // secciones
+  const sec = (title, items) => S.push({ title, items });
+  const it = (name, why, spss, icon, rec = true) => ({ name, why, spss, icon, rec });
+  const avoid = []; const notes = []; let report = "";
+  const sym = d.dShape === "simetrica", asym = d.dShape === "asimetrica", unk = !d.dShape || d.dShape === "nose";
+
+  const quantMeasures = () => {
+    sec("Tendencia central", [
+      it("Media", sym ? "Con distribución simétrica es la medida más informativa." : asym ? "Solo como complemento: los valores extremos la arrastran hacia la cola." : "Úsala como principal si la distribución resulta simétrica.", "Frecuencias → Estadísticos → Media", null, sym || unk),
+      it("Mediana", asym ? "El valor central; no se deja arrastrar por atípicos ni por la asimetría." : "Repórtala también: si se aleja mucho de la media, hay asimetría.", "Frecuencias → Estadísticos → Mediana", null, asym || unk),
+      it("Moda", "Útil en variables discretas o para señalar distribuciones con dos picos (bimodales).", "Frecuencias → Estadísticos → Moda", null, false),
+    ]);
+    sec("Dispersión", [
+      it("Desviación estándar (y varianza)", sym ? "Distancia promedio de los datos a la media; acompaña siempre a la media." : "Acompaña a la media; con asimetría fuerte, el RIC describe mejor.", "Frecuencias → Estadísticos → Desviación típica, Varianza", null, sym || unk),
+      it("Rango intercuartílico (RIC)", "RIC = P75 − P25: la amplitud de la mitad central de los datos; acompaña a la mediana.", "Frecuencias → Estadísticos → Cuartiles (resta P75 − P25)", null, asym || unk),
+      it("Rango (mínimo–máximo)", "Muestra los extremos; muy sensible a atípicos, por eso no se usa solo.", "Frecuencias → Estadísticos → Rango, Mínimo, Máximo", null, true),
+      it("Coeficiente de variación", "CV = DE ÷ media × 100. Compara la variabilidad de variables con distinta escala. Solo en variables de razón (con cero absoluto).", "Calcúlalo a mano con la media y la DE", null, false),
+    ]);
+  };
+  const quantPosition = () => {
+    sec("Posición", [
+      it("Cuartiles y percentiles", "P25, P50 (= mediana) y P75; o cualquier percentil (p. ej., P90 para valores de corte).", "Frecuencias → Estadísticos → Cuartiles / Percentiles", null, true),
+      it("Puntajes z", "z = (x − media) ÷ DE: ubica a cada caso respecto al grupo. |z| > 3.29 sugiere un atípico.", "Descriptivos → marcar 'Guardar valores tipificados como variables'", null, sym || unk),
+    ]);
+    sec("Forma", [
+      it("Asimetría y curtosis", "Divide cada una entre su error estándar: |z| > 1.96 (n < 50) o > 3.29 (n de 50 a 300) indica desviación. Asimetría positiva = cola a la derecha.", "Frecuencias → Estadísticos → Asimetría, Curtosis", null, true),
+      it("Atípicos en el diagrama de caja", "Círculos: valores a más de 1.5 RIC de la caja; asteriscos: a más de 3 RIC (extremos).", "Explorar → Gráficos → Diagramas de caja", null, true),
+    ]);
+  };
+
+  if (d.dObj === "una" && d.dType === "nominal") {
+    sec("Tabla", [it("Tabla de frecuencias (n y %)", "Ordena las categorías de mayor a menor frecuencia. Si hay datos perdidos, reporta el porcentaje válido.", "Analizar → Estadísticos descriptivos → Frecuencias", "table")]);
+    sec("Gráfica", [
+      it("Gráfico de barras", "Compara categorías con precisión. Deja espacio entre barras: son categorías separadas.", "Frecuencias → Gráficos → Gráficos de barras", "bar"),
+      it("Gráfico circular (pastel)", "Solo con pocas categorías (5 o menos) que sumen 100%: el ojo compara mal los ángulos.", "Frecuencias → Gráficos → Gráficos circulares", "pie", false),
+    ]);
+    sec("Tendencia central", [it("Moda", "Es la única medida válida en nominal: la categoría más frecuente.", "Frecuencias → Estadísticos → Moda")]);
+    sec("Dispersión", [it("% de la categoría modal y número de categorías", "Indican qué tan concentrados están los casos. Opcional: índice de variación cualitativa (IVQ, de 0 a 1).", "Se lee en la tabla de frecuencias")]);
+    sec("Posición", [it("No aplica", "Sin orden entre categorías no existen percentiles ni cuartiles.", "—", null, false)]);
+    avoid.push("Media, mediana o desviación estándar de los códigos numéricos (p. ej., 1 = hombre, 2 = mujer): el promedio de códigos no significa nada.", "Histogramas: son para variables cuantitativas.");
+    report = "La mayoría de los participantes eran mujeres (n = 64; 71.1%), seguidas de hombres (n = 24; 26.7%); 2.2% no respondió.";
+  }
+
+  else if (d.dObj === "una" && d.dType === "ordinal") {
+    sec("Tabla", [it("Tabla de frecuencias con % acumulado", "Respeta el orden natural de las categorías (no las ordenes por frecuencia). El acumulado permite ubicar la mediana.", "Analizar → Estadísticos descriptivos → Frecuencias", "table")]);
+    sec("Gráfica", [
+      it("Gráfico de barras en orden", "Las barras siguen el orden de la escala (nada → muchísimo).", "Frecuencias → Gráficos → Gráficos de barras", "bar"),
+      it("Barras apiladas al 100%", "Ideal para comparar varios ítems Likert que comparten la misma escala.", "Gráficos → Generador de gráficos → Barras apiladas", "stacked", false),
+    ]);
+    sec("Tendencia central", [
+      it("Mediana", "La categoría donde el porcentaje acumulado alcanza el 50%.", "Frecuencias → Estadísticos → Mediana"),
+      it("Moda", "La categoría más frecuente; complementa a la mediana.", "Frecuencias → Estadísticos → Moda", null, false),
+    ]);
+    sec("Dispersión", [
+      it("Rango intercuartílico (RIC)", "De la categoría del P25 a la del P75: la mitad central de las respuestas.", "Frecuencias → Estadísticos → Cuartiles"),
+      it("Rango", "De la categoría más baja a la más alta observada.", "Frecuencias → Estadísticos → Mínimo, Máximo", null, false),
+    ]);
+    sec("Posición", [it("Cuartiles y percentiles", "Indican qué categoría marca cada cuarto de la muestra.", "Frecuencias → Estadísticos → Cuartiles / Percentiles")]);
+    avoid.push("Media y DE de un solo ítem ordinal: suponen distancias iguales entre categorías. Si la reportas por convención, acompáñala de la mediana.", "Ordenar las barras por frecuencia: se pierde la información del orden.");
+    notes.push("Si sumas varios ítems para formar el puntaje total de una escala, ese puntaje suele tratarse como cuantitativo: elige “Cuantitativa continua”.");
+    report = "La mediana del nivel de dolor fue “moderado” (RIC: poco–mucho); 36.0% de los pacientes se ubicó en esa categoría.";
+  }
+
+  else if (d.dObj === "una" && isQuant(d)) {
+    const grouped = d.dType === "continua" || d.dValues === "muchos";
+    sec("Tabla", [grouped
+      ? it("Tabla de frecuencias agrupada en intervalos", "Número de intervalos con la regla de Sturges: k = 1 + 3.322 · log₁₀(n); amplitud = rango ÷ k. Con n = 100 → unos 8 intervalos.", "Transformar → Agrupación visual (crea la variable agrupada) → Frecuencias", "table")
+      : it("Tabla de frecuencias simple", "Cada valor en su renglón (0, 1, 2, 3…) con n, % y % acumulado.", "Analizar → Estadísticos descriptivos → Frecuencias", "table"),
+      it("Tabla de estadísticos descriptivos", "n, media, DE, mediana, RIC, mínimo y máximo en una sola tabla.", "Frecuencias → Estadísticos (o Explorar)", "table", true)]);
+    sec("Gráfica", [
+      grouped
+        ? it("Histograma", "Muestra la forma: simetría, sesgo, picos. Las barras van juntas porque la escala es continua.", "Frecuencias → Gráficos → Histogramas (marcar 'Mostrar curva normal')", "hist")
+        : it("Gráfico de barras (bastones)", "Con pocos valores enteros, cada barra representa un valor.", "Frecuencias → Gráficos → Gráficos de barras", "bar"),
+      it("Diagrama de caja y bigotes", "Resume mediana, cuartiles y atípicos en una sola figura.", "Explorar → Gráficos → Diagramas de caja", "box"),
+    ]);
+    quantMeasures(); quantPosition();
+    avoid.push("Gráfico circular o barras separadas para valores continuos.");
+    if (!sym) avoid.push("Reportar solo la media cuando hay asimetría: los valores extremos la desplazan.", "Media ± DE cuando la DE es mayor que la media en una variable que no puede ser negativa: es señal de asimetría fuerte.");
+    report = asym
+      ? "El tiempo de traslado mostró asimetría positiva; mediana = 45 min (RIC: 30–70; rango: 10–180)."
+      : "La edad de los participantes tuvo una media de 21.4 años (DE = 2.3; rango: 18–29).";
+  }
+
+  else if (d.dPair === "catcat") {
+    sec("Tabla", [it("Tabla de contingencia con porcentajes", "Calcula los porcentajes dentro de cada categoría de la variable que define los grupos, para comparar grupos de distinto tamaño.", "Tablas cruzadas → Casillas → Porcentajes: Fila o Columna", "table")]);
+    sec("Gráfica", [
+      it("Barras agrupadas", "Una barra por combinación de categorías; compara frecuencias o porcentajes.", "Gráficos → Generador de gráficos → Barras agrupadas", "grouped"),
+      it("Barras apiladas al 100%", "Muestra la composición de cada grupo; muy clara para comparar porcentajes.", "Gráficos → Generador de gráficos → Barras apiladas (en %)", "stacked"),
+    ]);
+    sec("Medidas", [
+      it("Porcentajes condicionales", "El % de una categoría dentro de cada grupo (p. ej., % con burnout en cada turno).", "Tablas cruzadas → Casillas → Porcentajes"),
+      it("V de Cramer (opcional)", "Resume la intensidad de la asociación de 0 a 1, incluso sin prueba de hipótesis.", "Tablas cruzadas → Estadísticos → Phi y V de Cramer", null, false),
+    ]);
+    avoid.push("Comparar frecuencias absolutas entre grupos de distinto tamaño.", "Porcentajes sobre el total de la tabla cuando lo que quieres es comparar grupos.");
+    report = "En el turno nocturno, 45.0% de los internos presentó burnout, frente a 22.5% en el turno diurno.";
+  }
+
+  else if (d.dPair === "cuantcat") {
+    sec("Tabla", [it("Tabla de medidas por grupo", sym ? "Para cada grupo: n, media, DE, mínimo y máximo." : "Para cada grupo: n, mediana, RIC, mínimo y máximo (y la media como complemento).", "Explorar (VI en 'Lista de factores') o Comparar medias → Medias", "table")]);
+    sec("Gráfica", [
+      it("Diagramas de caja lado a lado", "La mejor forma de comparar distribuciones y detectar atípicos en cada grupo.", "Explorar → Gráficos → Diagramas de caja (con la VI en 'Lista de factores')", "box"),
+      it("Barras de error (media ± IC 95%)", "Muestra medias y su precisión. Prefiérelo a barras de medias sin variabilidad.", "Gráficos → Generador de gráficos → Barras de error simples", "err", sym || unk),
+    ]);
+    sec("Medidas por grupo", [
+      it(sym ? "Media y desviación estándar" : asym ? "Mediana y RIC" : "Media y DE, o mediana y RIC", sym ? "Con distribuciones simétricas en cada grupo." : asym ? "Con asimetría o atípicos en algún grupo." : "Decide tras revisar la forma de la distribución en cada grupo.", "Explorar → Estadísticos → Descriptivos"),
+      it("Diferencia entre grupos", "Resta las medias (o medianas) para expresar cuánto difieren; la d de Cohen la expresa en unidades de DE.", "Calcúlala con los descriptivos de cada grupo", null, false),
+    ]);
+    avoid.push("Gráficos de barras de medias sin ninguna medida de variabilidad.", "Comparar grupos solo con la media si hay asimetría o atípicos.");
+    report = sym || unk
+      ? "El estrés fue mayor en el turno nocturno (M = 24.6, DE = 5.1) que en el diurno (M = 20.8, DE = 4.9)."
+      : "El tiempo de espera fue mayor en urgencias (Mdn = 95 min, RIC: 60–150) que en consulta externa (Mdn = 40 min, RIC: 25–65).";
+  }
+
+  else if (d.dPair === "cuantcuant") {
+    sec("Tabla", [it("Descriptivos de ambas variables", sym ? "n, media y DE de cada variable." : "n, mediana y RIC de cada variable.", "Frecuencias → Estadísticos, o Descriptivos", "table")]);
+    sec("Gráfica", [it("Diagrama de dispersión", "Muestra forma (recta o curva), dirección, fuerza y atípicos. Hazlo siempre antes de calcular un coeficiente.", "Gráficos → Generador de gráficos → Dispersión/Puntos (agregar línea de ajuste)", "scatter")]);
+    sec("Medidas de relación", [
+      it("r de Pearson (descriptivo)", "Dirección y fuerza de la relación lineal: .10 débil, .30 moderada, .50 fuerte. r² = proporción de varianza compartida.", "Analizar → Correlaciones → Bivariadas → Pearson", null, sym || unk),
+      it("rho de Spearman", "Relación monotónica; robusta a atípicos y asimetría.", "Analizar → Correlaciones → Bivariadas → Spearman", null, asym || unk),
+    ]);
+    avoid.push("Calcular r sin mirar el diagrama: una relación curva o un atípico pueden dar un r engañoso.", "Interpretar una correlación como causalidad.");
+    report = "Las horas de sueño y el estrés mostraron una relación negativa moderada (r = −.41): a más horas de sueño, menor estrés.";
+  }
+
+  return { sections: S, avoid, notes, report };
+}
+
+/* ---------- íconos de gráficas ---------- */
+function ChartIcon({ kind }) {
+  const c = "var(--accent)", g = "var(--ink-soft)";
+  const icons = {
+    table: <g stroke={g} strokeWidth="1.5" fill="none"><rect x="6" y="8" width="36" height="30" rx="2" /><line x1="6" y1="16" x2="42" y2="16" /><line x1="6" y1="24" x2="42" y2="24" /><line x1="6" y1="31" x2="42" y2="31" /><line x1="20" y1="8" x2="20" y2="38" /></g>,
+    bar: <g><rect x="7" y="22" width="7" height="16" fill={c} /><rect x="17" y="12" width="7" height="26" fill={c} /><rect x="27" y="27" width="7" height="11" fill={c} /><rect x="37" y="18" width="5" height="20" fill={c} opacity=".6" /><line x1="4" y1="38" x2="44" y2="38" stroke={g} strokeWidth="1.5" /></g>,
+    hist: <g fill={c}><rect x="6" y="30" width="6" height="8" /><rect x="12" y="20" width="6" height="18" /><rect x="18" y="10" width="6" height="28" /><rect x="24" y="14" width="6" height="24" /><rect x="30" y="24" width="6" height="14" /><rect x="36" y="32" width="6" height="6" /><line x1="4" y1="38" x2="44" y2="38" stroke={g} strokeWidth="1.5" /></g>,
+    box: <g stroke={g} strokeWidth="1.5" fill="none"><line x1="24" y1="6" x2="24" y2="14" /><line x1="24" y1="30" x2="24" y2="38" /><line x1="19" y1="6" x2="29" y2="6" /><line x1="19" y1="38" x2="29" y2="38" /><rect x="15" y="14" width="18" height="16" fill={c} fillOpacity=".25" stroke={c} /><line x1="15" y1="21" x2="33" y2="21" stroke={c} strokeWidth="2.2" /><circle cx="24" cy="3" r="1.6" fill={g} /></g>,
+    pie: <g><circle cx="24" cy="23" r="15" fill={c} opacity=".35" /><path d="M24 23 L24 8 A15 15 0 0 1 38.3 27.6 Z" fill={c} /></g>,
+    stacked: <g>{[8, 20, 32].map((x, i) => <g key={i}><rect x={x} y="8" width="9" height={[12, 18, 8][i]} fill={c} /><rect x={x} y={8 + [12, 18, 8][i]} width="9" height={30 - [12, 18, 8][i]} fill={c} opacity=".35" /></g>)}</g>,
+    grouped: <g>{[6, 20, 34].map((x, i) => <g key={i}><rect x={x} y={38 - [20, 26, 14][i]} width="5" height={[20, 26, 14][i]} fill={c} /><rect x={x + 5} y={38 - [12, 18, 24][i]} width="5" height={[12, 18, 24][i]} fill={c} opacity=".4" /></g>)}<line x1="4" y1="38" x2="44" y2="38" stroke={g} strokeWidth="1.5" /></g>,
+    err: <g stroke={g} strokeWidth="1.5">{[14, 34].map((x, i) => <g key={i}><line x1={x} y1={[10, 18][i]} x2={x} y2={[26, 32][i]} /><line x1={x - 4} y1={[10, 18][i]} x2={x + 4} y2={[10, 18][i]} /><line x1={x - 4} y1={[26, 32][i]} x2={x + 4} y2={[26, 32][i]} /><circle cx={x} cy={[18, 25][i]} r="3" fill={c} stroke="none" /></g>)}</g>,
+    scatter: <g fill={c}>{[[8, 32], [12, 28], [15, 30], [18, 24], [21, 25], [24, 20], [27, 21], [30, 16], [33, 17], [36, 12], [40, 10]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="2" />)}<line x1="6" y1="34" x2="42" y2="9" stroke={g} strokeWidth="1" strokeDasharray="2 2" /></g>,
+  };
+  return <svg viewBox="0 0 48 44" width="48" height="44" style={{ flexShrink: 0 }} aria-hidden="true">{icons[kind] || null}</svg>;
+}
+
+/* ---------- tabla de referencia por nivel de medición ---------- */
+function LevelMatrix({ d }) {
+  const row = d.dType === "nominal" ? "nom" : d.dType === "ordinal" ? "ord" : isQuant(d) && d.dObj === "una" ? "cuant" : "";
+  const rows = [
+    { k: "nom", n: "Nominal", t: "Moda", di: "% categoría modal, IVQ", p: "No aplica", g: "Barras, circular (≤ 5 categorías)" },
+    { k: "ord", n: "Ordinal", t: "Mediana, moda", di: "RIC, rango", p: "Cuartiles, percentiles", g: "Barras en orden, apiladas 100%" },
+    { k: "cuant", n: "Intervalo / razón", t: "Media (simétrica) o mediana (asimétrica)", di: "DE, varianza, RIC, rango, CV (razón)", p: "Cuartiles, percentiles, puntajes z", g: "Histograma, caja y bigotes, barras (discreta)" },
+  ];
+  return (
+    <div className="card rounded p-6">
+      <div className="text-[11px] mono uppercase tracking-wider text-[color:var(--accent)]">Referencia rápida</div>
+      <h3 className="serif text-2xl font-medium mt-1 mb-4">¿Qué medida corresponde a cada nivel de medición?</h3>
+      <div className="overflow-x-auto">
+        <table className="mini">
+          <thead><tr><th>Nivel</th><th>Tendencia central</th><th>Dispersión</th><th>Posición</th><th>Gráficas</th></tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.k} className={row === r.k ? "hl" : ""}>
+                <td className="font-medium whitespace-nowrap">{r.n}{row === r.k && <span className="text-[color:var(--accent)] text-xs"> ◂ tu caso</span>}</td>
+                <td>{r.t}</td><td>{r.di}</td><td>{r.p}</td><td>{r.g}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[color:var(--muted)] mt-3">Cada nivel admite también las medidas de los niveles inferiores (p. ej., en una variable de razón puedes reportar la moda), pero no las de los superiores.</p>
+    </div>
+  );
+}
+
+/* ---------- lecturas de SPSS para descriptiva ---------- */
+Object.assign(READERS, {
+  frecuencias: {
+    title: "Tabla de frecuencias",
+    menu: "Analizar → Estadísticos descriptivos → Frecuencias",
+    tables: [{
+      caption: "Nivel de dolor",
+      head: [[{ t: "", cs: 2 }, { t: "Frecuencia" }, { t: "Porcentaje" }, { t: "Porcentaje válido" }, { t: "Porcentaje acumulado" }]],
+      rows: [
+        [TH("Válido", { rs: 6 }), TH("Nada"), "6", "6.7", "7.0", "7.0"],
+        [TH("Poco"), "18", "20.0", "20.9", M("27.9", 4)],
+        [TH("Moderado"), M("31", 3), M("34.4", 1), M("36.0", 1), M("64.0", 4)],
+        [TH("Mucho"), "22", "24.4", "25.6", "89.5"],
+        [TH("Muchísimo"), "9", "10.0", "10.5", "100.0"],
+        [TH("Total"), M("86", 2), "95.6", "100.0", ""],
+        [TH("Perdidos"), TH("Sistema"), M("4", 2), "4.4", "", ""],
+        [TH("Total", { cs: 2 }), "90", "100.0", "", ""],
+      ],
+    }],
+    notes: [
+      { m: 1, t: "“Porcentaje” se calcula sobre todos los casos (90), incluidos los perdidos. “Porcentaje válido” solo sobre quienes respondieron (86). Reporta el válido." },
+      { m: 2, t: "Revisa siempre cuántos casos perdidos hay: 4 de 90. Si son muchos, menciónalo en tu reporte." },
+      { m: 3, t: "La moda es la categoría con mayor frecuencia: “Moderado” (31 casos)." },
+      { m: 4, t: "La mediana es la categoría donde el porcentaje acumulado pasa de 50%: “Poco” llega a 27.9% y “Moderado” a 64.0% → la mediana es “Moderado”. El acumulado solo tiene sentido en variables ordinales o cuantitativas." },
+    ],
+    decide: "Usa el porcentaje válido; ubica la moda (mayor frecuencia) y, si la variable es ordinal, la mediana con el acumulado.",
+    apa: "El nivel de dolor más frecuente fue moderado (n = 31; 36.0%); 4 pacientes no respondieron.",
+  },
+  estadisticos: {
+    title: "Tabla de estadísticos descriptivos",
+    menu: "Analizar → Estadísticos descriptivos → Frecuencias → Estadísticos",
+    tables: [{
+      caption: "Estadísticos — Edad (años)",
+      head: [[{ t: "", cs: 2 }, { t: "" }]],
+      rows: [
+        [TH("N", { rs: 2 }), TH("Válido"), "88"],
+        [TH("Perdidos"), "2"],
+        [TH("Media", { cs: 2 }), M("21.42", 1)],
+        [TH("Error estándar de la media", { cs: 2 }), M(".25", 6)],
+        [TH("Mediana", { cs: 2 }), M("21.00", 1)],
+        [TH("Moda", { cs: 2 }), "20"],
+        [TH("Desv. Desviación", { cs: 2 }), M("2.31", 2)],
+        [TH("Varianza", { cs: 2 }), "5.34"],
+        [TH("Asimetría", { cs: 2 }), M(".87", 3)],
+        [TH("Error estándar de asimetría", { cs: 2 }), M(".26", 3)],
+        [TH("Curtosis", { cs: 2 }), ".64"],
+        [TH("Error estándar de curtosis", { cs: 2 }), ".51"],
+        [TH("Rango", { cs: 2 }), "11"],
+        [TH("Mínimo", { cs: 2 }), "18"],
+        [TH("Máximo", { cs: 2 }), "29"],
+        [TH("Percentiles", { rs: 3 }), TH("25"), M("20.00", 4)],
+        [TH("50"), "21.00"],
+        [TH("75"), M("23.00", 4)],
+      ],
+    }],
+    notes: [
+      { m: 1, t: "Compara media y mediana: si están cerca, la distribución es casi simétrica; si la media es mayor, hay cola hacia valores altos." },
+      { m: 2, t: "“Desv. Desviación” es la desviación estándar: en promedio, las edades se alejan 2.31 años de la media. La varianza es la DE al cuadrado y no se interpreta directamente." },
+      { m: 3, t: "z de asimetría = .87 ÷ .26 = 3.35. Con n entre 50 y 300 el límite es 3.29 → hay asimetría positiva moderada: conviene reportar también mediana y RIC." },
+      { m: 4, t: "RIC = P75 − P25 = 23 − 20 = 3 años: la mitad central de la muestra tiene entre 20 y 23 años." },
+      { m: 5, t: "Si aparece la nota “a. Existen múltiples modos. Se muestra el valor más pequeño.”, la distribución tiene más de una moda." },
+      { m: 6, t: "El error estándar de la media no describe la dispersión de los datos (eso es la DE): indica la precisión de la media como estimación. No los confundas." },
+    ],
+    decide: "Simétrica → media y DE. Asimétrica (|z| de asimetría por encima del límite) → mediana y RIC, con la media como complemento.",
+    apa: "La edad de los participantes tuvo una media de 21.4 años (DE = 2.3; Mdn = 21; RIC: 20–23; rango: 18–29).",
+  },
+});
+
+/* ---------- componente principal del modo descriptivo ---------- */
+function DescriptiveMode({ draw, setDraw }) {
+  const { clean: d, steps } = dResolve(draw);
+  const answered = steps.filter(st => d[st.field]);
+  const current = steps.find(st => !d[st.field]);
+  const done = !current;
+  const adv = done ? descAdvice(d) : null;
+
+  const clearFrom = st => { const n = { ...draw }; DSTEPS.slice(DSTEPS.indexOf(st)).forEach(x => { n[x.field] = ""; }); return n; };
+  const answer = (st, v) => { const n = clearFrom(st); n[st.field] = v; setDraw(n); };
+
+  const readers = ["frecuencias", "estadisticos"].filter(k =>
+    k === "frecuencias" ? (["nominal", "ordinal"].includes(d.dType) || d.dValues === "pocos" || d.dPair === "catcat") : isQuant(d));
+  if (d.dPair === "cuantcuant") readers.push("correlacion");
+
+  return (
+    <>
+      <div className="grid lg:grid-cols-5 gap-8 mt-10">
+        <section className="lg:col-span-2 space-y-6">
+          <div className="card rounded p-6 md:p-8">
+            <div className="flex items-baseline justify-between mb-2">
+              <h2 className="serif text-2xl font-medium marker">Describe tus datos</h2>
+              <span className="text-xs mono text-[color:var(--muted)]">{done ? "Listo" : `Pregunta ${answered.length + 1}`}</span>
+            </div>
+            <p className="text-xs text-[color:var(--muted)] mb-5">Para estudios que solo describen la muestra, sin probar hipótesis.</p>
+            {current ? (
+              <div className="fade-in" key={current.field}>
+                <h3 className="serif text-xl leading-snug">{getText(current.q, d)}</h3>
+                <div className="text-sm text-[color:var(--ink-soft)] mt-2 border-l-2 border-[color:var(--accent-soft)] pl-3">{getText(current.help, d)}</div>
+                <div className="grid gap-2.5 mt-5">
+                  {getOpts(current, d).map(o => (
+                    <button key={o.value} className="opt" onClick={() => answer(current, o.value)}>
+                      <div className="font-medium">{o.label}</div>
+                      {o.desc && <div className="text-xs text-[color:var(--ink-soft)] mt-0.5">{o.desc}</div>}
+                    </button>
+                  ))}
+                </div>
+                {answered.length > 0 && (
+                  <button onClick={() => setDraw(clearFrom(answered[answered.length - 1]))} className="mt-5 text-sm text-[color:var(--muted)] hover:text-[color:var(--accent)]">← Pregunta anterior</button>
+                )}
+              </div>
+            ) : (
+              <div className="fade-in text-sm border-l-2 border-[color:var(--ok)] pl-4 py-1">
+                <div className="font-medium text-[color:var(--ok)]">Listo.</div>
+                <div className="text-[color:var(--ink-soft)]">Revisa las recomendaciones. Puedes cambiar cualquier respuesta.</div>
+              </div>
+            )}
+            {answered.length > 0 && (
+              <div className="mt-7 pt-5 border-t rule">
+                <div className="label mb-2">Tus respuestas</div>
+                <ol className="space-y-1.5">
+                  {answered.map((st, i) => (
+                    <li key={st.field} className="flex items-center gap-3 text-sm">
+                      <span className="mono text-xs text-[color:var(--accent)] w-5">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="text-[color:var(--muted)] w-28 shrink-0">{st.short}</span>
+                      <span className="flex-1 font-medium">{optLabel(st, d, d[st.field])}</span>
+                      <button onClick={() => setDraw(clearFrom(st))} className="text-xs text-[color:var(--muted)] hover:text-[color:var(--accent)] underline underline-offset-2">cambiar</button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
+          {adv && (
+            <div className="rounded p-6 border border-dashed fade-in" style={{ borderColor: 'var(--accent-soft)', background: 'rgba(228,168,142,.15)' }}>
+              <div className="label mb-1" style={{ color: "var(--accent)" }}>Ejemplo de redacción (APA 7)</div>
+              <p className="serif text-base">{adv.report}</p>
+              <p className="text-xs text-[color:var(--ink-soft)] mt-3">En APA, las medidas se escriben en cursiva (M, DE, Mdn, n) y los porcentajes con un decimal.</p>
+            </div>
+          )}
+        </section>
+
+        <aside className="lg:col-span-3 space-y-5">
+          {!adv ? (
+            <div className="card rounded p-6">
+              <h2 className="serif text-2xl font-medium marker mb-3">Recomendaciones</h2>
+              <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">Responde las preguntas para ver qué tabla, qué gráfica y qué medidas usar.</div>
+            </div>
+          ) : (
+            <>
+              {adv.sections.map((sx, i) => (
+                <div key={i} className="card rounded p-6 fade-in" style={{ animationDelay: `${i * 40}ms` }}>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <h3 className="serif text-2xl font-medium">{sx.title}</h3>
+                    <span className="serif text-2xl text-[color:var(--accent)] num">{String(i + 1).padStart(2, "0")}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {sx.items.map((x, j) => (
+                      <div key={j} className={`rounded p-3 border flex gap-3 ${x.rec ? "border-[color:var(--accent)] bg-white" : "border-[color:var(--line)]"}`}
+                           style={x.rec ? { boxShadow: "inset 3px 0 0 var(--accent)" } : {}}>
+                        {x.icon && <ChartIcon kind={x.icon} />}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="font-medium">{x.name}</div>
+                            <span className="text-[10px] mono uppercase tracking-wider text-[color:var(--muted)]">{x.rec ? "Recomendada" : "Opcional"}</span>
+                          </div>
+                          <p className="text-sm text-[color:var(--ink-soft)] mt-0.5">{x.why}</p>
+                          {x.spss && x.spss !== "—" && <p className="text-xs mono text-[color:var(--muted)] mt-1">{x.spss}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {(adv.avoid.length > 0 || adv.notes.length > 0) && (
+                <div className="card rounded p-6 fade-in">
+                  <h3 className="serif text-xl font-medium mb-3">Evita</h3>
+                  <ul className="pl-5 list-disc text-sm text-[color:var(--ink-soft)] space-y-1">
+                    {adv.avoid.map((a, i) => <li key={i}>{a}</li>)}
+                  </ul>
+                  {adv.notes.map((n, i) => <p key={i} className="text-sm mt-3 border-l-2 border-[color:var(--warn)] pl-3 text-[color:var(--ink-soft)]">{n}</p>)}
+                </div>
+              )}
+            </>
+          )}
+        </aside>
+      </div>
+
+      <section className="mt-12 space-y-5">
+        <div className="flex items-baseline justify-between pb-4 border-b rule">
+          <h2 className="serif text-3xl font-medium">Referencia y lectura de SPSS</h2>
+          <span className="text-xs mono text-[color:var(--muted)]">Descriptiva</span>
+        </div>
+        <LevelMatrix d={d} />
+        {(done ? readers : ["frecuencias", "estadisticos"]).map(id => <SpssReader key={id} id={id} open={done} />)}
+      </section>
+    </>
+  );
+}
+
 /* ============================================================
    APP
    ============================================================ */
@@ -1744,6 +2683,7 @@ const IN_FRAME = (() => { try { return window.self !== window.top; } catch (e) {
 function App() {
   const [mode, setMode] = useState("guiado");
   const [raw, setRaw] = useState(EMPTY);
+  const [draw, setDraw] = useState(Object.fromEntries(DSTEPS.map(st => [st.field, ""])));
   const [researchQuestion, setRQ] = useState("");
   const [iv, setIV] = useState("");
   const [dv, setDV] = useState("");
@@ -1763,7 +2703,7 @@ function App() {
   const showHyp = mode === "formulario" || complete;
 
   const reset = () => {
-    setRaw(EMPTY); setRQ(""); setIV(""); setDV("");
+    setRaw(EMPTY); setDraw(Object.fromEntries(DSTEPS.map(st => [st.field, ""]))); setRQ(""); setIV(""); setDV("");
     setLabelA(""); setLabelB(""); setDirection("");
   };
 
@@ -1788,11 +2728,13 @@ function App() {
           <div className="seg inline-flex rounded border rule overflow-hidden">
             <button className={mode === "guiado" ? "on" : ""} onClick={() => setMode("guiado")}>Guiado paso a paso</button>
             <button className={mode === "formulario" ? "on" : ""} onClick={() => setMode("formulario")}>Formulario completo</button>
+            <button className={mode === "descriptiva" ? "on" : ""} onClick={() => setMode("descriptiva")}>Estadística descriptiva</button>
           </div>
-          <div className="text-[11px] text-[color:var(--muted)] mt-1.5 text-right">Tus respuestas se conservan al cambiar de modo.</div>
+          <div className="text-[11px] text-[color:var(--muted)] mt-1.5 text-right">{mode === "descriptiva" ? "Tablas, gráficas y medidas, sin prueba de hipótesis." : "Tus respuestas se conservan al cambiar de modo."}</div>
         </div>
       </header>
 
+      {mode === "descriptiva" ? <DescriptiveMode draw={draw} setDraw={setDraw} /> : (<>
       <div className="grid lg:grid-cols-5 gap-8 mt-10">
         <section className="lg:col-span-3 space-y-6">
           <div className="card rounded p-6 md:p-8">
@@ -1915,6 +2857,9 @@ function App() {
         </section>
       )}
 
+      <SpssSection ids={ready ? readersFor(s, results) : []} ready={ready} />
+      </>)}
+
       <section className="mt-14 pt-6 border-t rule text-xs text-[color:var(--muted)]">
         <div className="label mb-2">Referencias</div>
         <ul className="space-y-1.5" style={{ paddingLeft: "1.5em", textIndent: "-1.5em" }}>
@@ -1928,7 +2873,7 @@ function App() {
 
       <footer className="mt-10 pt-6 border-t rule text-xs mono text-[color:var(--muted)] flex flex-wrap gap-4 justify-between">
         <span>© Dr. José Antonio Campos Gil · Material didáctico de Estadística inferencial</span>
-        <span>Modo guiado + reglas de supuestos · v 3.0</span>
+        <span>Inferencial guiado · formulario · descriptiva · lectura de SPSS · v 3.2</span>
       </footer>
     </div>
   );
