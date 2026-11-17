@@ -8,9 +8,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.14/babel.min.js"></script>
 <style>
   :root{
     --paper:#F5F1E8;
@@ -1028,6 +1028,11 @@ function HypothesisBuilder({ state, labelA, setLabelA, labelB, setLabelB, direct
   const labels = getLabelNames(state);
   const h = buildHypotheses(state, { a: labelA || labels.a, b: labelB || labels.b });
 
+  // Si la selección actual ya no está entre las alternativas, limpiarla.
+  useEffect(() => {
+    if (direction && (!h || !h.alternatives.find(a => a.id === direction))) setDirection("");
+  }, [h ? h.alternatives.map(a => a.id).join("|") : "", direction]);
+
   if (!state.objective || !state.dvType) {
     return (
       <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">
@@ -1043,11 +1048,6 @@ function HypothesisBuilder({ state, labelA, setLabelA, labelB, setLabelB, direct
       </div>
     );
   }
-
-  // Si la selección actual ya no está entre las alternativas, limpiarla.
-  useEffect(() => {
-    if (direction && h && !h.alternatives.find(a => a.id === direction)) setDirection("");
-  }, [h && h.alternatives.map(a => a.id).join("|"), direction]);
 
   return (
     <div className="space-y-6">
@@ -1299,7 +1299,6 @@ function App() {
           </div>
 
           <div className="flex gap-3 no-print">
-            <button onClick={() => window.print()} className="flex-1 chip rounded py-2.5 text-sm hover:bg-[color:var(--paper)]">Imprimir / PDF</button>
             <button onClick={reset} className="flex-1 btn-accent rounded py-2.5 text-sm">Reiniciar</button>
           </div>
         </aside>
