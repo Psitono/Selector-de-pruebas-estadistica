@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Selector de prueba estadística · Dr. Jose Antonio</title>
+<title>Selector de prueba estadística · Dr. José Antonio Campos Gil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -53,6 +53,15 @@
   .fade-in{animation:fade .35s ease-out both;}
   @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
   .num{font-variant-numeric:tabular-nums;}
+  .opt{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:.85rem 1rem;transition:all .15s;}
+  .opt:hover{border-color:var(--accent);background:#fff;box-shadow:inset 3px 0 0 var(--accent);}
+  .seg button{padding:.5rem .95rem;font-size:.82rem;background:var(--paper);}
+  .seg button+button{border-left:1px solid var(--line);}
+  .seg button.on{background:var(--ink);color:var(--paper);}
+  table.mini{width:100%;font-size:.84rem;border-collapse:collapse;}
+  table.mini th{font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;}
+  table.mini td,table.mini th{border-bottom:1px solid var(--line);padding:.5rem .5rem;text-align:left;vertical-align:top;}
+  .hl{background:rgba(181,71,46,.09);}
   @media print{
     .no-print{display:none!important;}
     body{background:#fff;}
@@ -433,61 +442,584 @@ const TESTS = {
   }
 };
 
+
 /* ============================================================
-   OPCIONES DEL FORMULARIO
+   EXTENSIONES DEL CATÁLOGO (v3)
    ============================================================ */
-const objectives = [
-  { value: "una_muestra", label: "Comparar una media con un valor conocido" },
-  { value: "comparar", label: "Comparar grupos" },
-  { value: "cambio", label: "Evaluar cambio / medidas repetidas" },
-  { value: "relacion", label: "Relacionar variables" },
-  { value: "predecir", label: "Predecir / explicar" },
-  { value: "asociacion_cat", label: "Asociación entre categóricas" },
-  { value: "supervivencia", label: "Tiempo hasta un evento (supervivencia)" },
-  { value: "multivariante", label: "Varias VDs continuas (multivariante)" },
+Object.assign(TESTS, {
+  chi_bondad: {
+    name: "χ² de bondad de ajuste",
+    family: "No paramétrica (categóricas)",
+    purpose: "Comparar la distribución observada de una variable categórica con proporciones esperadas (teóricas o poblacionales).",
+    assumptions: ["Observaciones independientes", "Frecuencias esperadas ≥ 5 en al menos el 80% de las categorías y ninguna < 1"],
+    spss: ["Analizar → Pruebas no paramétricas → Cuadros de diálogo antiguos → Chi-cuadrado", "Lista de contrastar: tu variable", "Valores esperados: 'Todas las categorías iguales' o introducir las proporciones teóricas en orden"],
+    jamovi: "Frequencies → N Outcomes (χ² Goodness of fit)",
+    effect: "w de Cohen"
+  }
+});
+TESTS.fisher = { ...TESTS.fisher,
+  purpose: "Alternativa exacta a χ² cuando las frecuencias esperadas son bajas. En tablas mayores que 2×2 se conoce como Fisher-Freeman-Halton.",
+  assumptions: ["Observaciones independientes", "Tabla 2×2: SPSS la reporta automáticamente en Tablas cruzadas", "Tabla R×C: requiere el botón 'Exactas' (módulo Exact Tests) o agrupar categorías con sentido teórico"],
+  spss: ["Analizar → Estadísticos descriptivos → Tablas cruzadas", "Estadísticos → marcar 'Chi-cuadrado'", "En 2×2 leer la fila 'Estadístico exacto de Fisher'; en R×C usar el botón 'Exactas' → 'Exacto'"]
+};
+TESTS.mcnemar = { ...TESTS.mcnemar,
+  purpose: "Comparar una variable categórica medida dos veces en las mismas personas. Con más de dos categorías se usa su extensión, McNemar-Bowker."
+};
+
+/* ============================================================
+   OPCIONES (con descripción para el modo guiado)
+   ============================================================ */
+const OPT = {
+  objective: [
+    { value: "comparar", label: "Comparar grupos", desc: "¿Difieren dos o más grupos en la VD? Ej.: ansiedad en hombres vs. mujeres; glucosa con tres esquemas de tratamiento." },
+    { value: "cambio", label: "Evaluar cambio / medidas repetidas", desc: "Las mismas personas medidas en dos o más momentos o condiciones. Ej.: pre-post de una intervención." },
+    { value: "relacion", label: "Relacionar dos variables", desc: "¿Varían juntas? Ej.: horas de sueño y rendimiento; IMC y presión arterial." },
+    { value: "predecir", label: "Predecir o explicar una variable", desc: "Uno o varios predictores explican una VD. Ej.: burnout a partir de carga laboral y apoyo social." },
+    { value: "asociacion_cat", label: "Asociación entre dos variables categóricas", desc: "Ej.: sexo y elección de especialidad; tabaquismo y diagnóstico." },
+    { value: "una_muestra", label: "Comparar una muestra con un valor de referencia", desc: "Ej.: ¿la media de estrés del grupo difiere de la norma poblacional?" },
+    { value: "supervivencia", label: "Tiempo hasta un evento", desc: "Ej.: tiempo hasta recaída o abandono del tratamiento, con casos censurados." },
+    { value: "multivariante", label: "Varias VDs continuas a la vez", desc: "Ej.: comparar grupos en ansiedad, depresión y estrés simultáneamente." },
+  ],
+  dvType: [
+    { value: "continua", label: "Cuantitativa continua", desc: "Intervalo o razón: puntaje total de una escala, edad, presión arterial." },
+    { value: "ordinal", label: "Ordinal", desc: "Categorías ordenadas o un solo ítem Likert: nivel de dolor, grado de acuerdo." },
+    { value: "dicotomica", label: "Dicotómica", desc: "Dos categorías: sí/no, caso/control, aprobado/reprobado." },
+    { value: "nominal", label: "Nominal (3+ categorías)", desc: "Categorías sin orden: carrera, estado civil, tipo de diagnóstico." },
+    { value: "conteo", label: "Conteo", desc: "Número de eventos: consultas al año, crisis por semana." },
+    { value: "tiempo", label: "Tiempo hasta evento", desc: "Duración hasta que algo ocurre, con censura." },
+  ],
+  ivCount: [
+    { value: "2", label: "Dos grupos o dos momentos", desc: "Ej.: experimental vs. control; pre vs. post." },
+    { value: "3+", label: "Tres o más grupos o momentos", desc: "Ej.: tres turnos laborales; mediciones basal, 3 y 6 meses." },
+    { value: "factorial", label: "Dos o más factores (factorial)", desc: "Ej.: tratamiento (A/B) × sexo; efectos principales e interacción." },
+  ],
+  design: [
+    { value: "independientes", label: "Grupos independientes", desc: "Cada persona pertenece a un solo grupo." },
+    { value: "pareados", label: "Mismas personas (relacionadas)", desc: "Cada persona se mide en todas las condiciones o momentos, o hay pares emparejados." },
+    { value: "mixto", label: "Mixto (intra + inter)", desc: "Hay un factor entre grupos y otro de medidas repetidas. Ej.: grupo × tiempo." },
+  ],
+  multipleDV: [
+    { value: "si", label: "Sí", desc: "Tengo varias VDs continuas relacionadas teóricamente." },
+    { value: "no", label: "No", desc: "Solo esta VD." },
+  ],
+  tableSize: [
+    { value: "2x2", label: "2 × 2", desc: "Ambas variables tienen dos categorías." },
+    { value: "rxc", label: "Mayor que 2 × 2 (R × C)", desc: "Al menos una variable tiene tres o más categorías." },
+  ],
+  expectedFreq: [
+    { value: "ok", label: "Se cumple la regla", desc: "Ninguna frecuencia esperada < 1 y no más del 20% de celdas < 5." },
+    { value: "bajo", label: "No se cumple", desc: "Hay esperadas < 1 o más del 20% de celdas < 5." },
+    { value: "nose", label: "Aún no lo reviso", desc: "Te diremos qué hacer en ambos casos." },
+  ],
+  sample: [
+    { value: "lt30", label: "Menos de 30", desc: "Muestra pequeña." },
+    { value: "30to50", label: "Entre 30 y 49", desc: "" },
+    { value: "50to300", label: "Entre 50 y 300", desc: "" },
+    { value: "gt300", label: "Más de 300", desc: "Muestra grande." },
+    { value: "nose", label: "No lo sé aún", desc: "" },
+  ],
+  normality: [
+    { value: "si", label: "Sí, aproximadamente normal", desc: "La prueba no fue significativa (p > .05) y los gráficos lo respaldan." },
+    { value: "no", label: "No, se aleja de la normal", desc: "Prueba significativa (p ≤ .05), asimetría marcada o atípicos." },
+    { value: "nose", label: "Aún no lo reviso", desc: "Se asumirá la ruta paramétrica con advertencias." },
+  ],
+  equalVar: [
+    { value: "si", label: "Sí, son homogéneas", desc: "Levene no significativa (p > .05)." },
+    { value: "no", label: "No, son desiguales", desc: "Levene significativa (p ≤ .05)." },
+    { value: "nose", label: "Aún no lo reviso", desc: "" },
+  ],
+  equalN: [
+    { value: "si", label: "Sí, similares", desc: "El grupo mayor no supera ~1.5 veces al menor." },
+    { value: "no", label: "No, bastante distintos", desc: "" },
+  ],
+  postHocGoal: [
+    { value: "todas", label: "Todas las comparaciones por pares", desc: "Exploratorio: cada grupo contra cada grupo." },
+    { value: "control", label: "Cada grupo contra un grupo control", desc: "Ej.: dos tratamientos vs. placebo." },
+    { value: "planeadas", label: "Pocas comparaciones definidas de antemano", desc: "Hipótesis específicas planteadas antes de recolectar datos." },
+  ],
+  nPred: [
+    { value: "uno", label: "Un predictor", desc: "" },
+    { value: "varios", label: "Dos o más predictores", desc: "" },
+  ],
+  hasCovariates: [
+    { value: "si", label: "Sí", desc: "Ej.: edad, puntaje basal, escolaridad." },
+    { value: "no", label: "No", desc: "" },
+  ],
+};
+
+/* ============================================================
+   PASOS CONDICIONALES — en el orden real de decisión
+   ============================================================ */
+const isChiPath = s =>
+  s.objective === "asociacion_cat" ||
+  (s.objective === "relacion" && s.dvType === "nominal") ||
+  (s.objective === "una_muestra" && s.dvType === "nominal") ||
+  (s.objective === "comparar" && (s.dvType === "nominal" || s.dvType === "dicotomica") && s.design === "independientes" && s.ivCount !== "factorial");
+
+const contPath = s =>
+  s.dvType === "continua" && ["una_muestra", "comparar", "cambio", "relacion", "multivariante"].includes(s.objective);
+
+const STEPS = [
+  { field: "objective", short: "Objetivo",
+    q: "¿Qué quieres hacer con tus datos?",
+    help: "Piensa en tu pregunta de investigación: ¿comparas grupos, buscas relación, quieres predecir?",
+    options: OPT.objective, when: () => true },
+  { field: "dvType", short: "Tipo de VD",
+    q: "¿Qué tipo de variable es tu variable dependiente (VD)?",
+    help: s => s.objective === "relacion"
+      ? "Elige el nivel de medición más bajo de tus dos variables. Si una es dicotómica y la otra continua, elige 'Dicotómica'."
+      : "El nivel de medición decide si puedes trabajar con medias (paramétricas) o con rangos y frecuencias.",
+    options: s => {
+      const allow = {
+        una_muestra: ["continua", "ordinal", "dicotomica", "nominal"],
+        comparar: ["continua", "ordinal", "dicotomica", "nominal", "conteo"],
+        cambio: ["continua", "ordinal", "dicotomica", "nominal"],
+        relacion: ["continua", "ordinal", "dicotomica", "nominal"],
+        predecir: ["continua", "ordinal", "dicotomica", "nominal", "conteo", "tiempo"],
+      }[s.objective] || [];
+      return OPT.dvType.filter(o => allow.includes(o.value));
+    },
+    when: s => !!s.objective && !["asociacion_cat", "supervivencia", "multivariante"].includes(s.objective) },
+  { field: "ivCount", short: "Grupos / momentos",
+    q: "¿Cuántos grupos, momentos o condiciones comparas?",
+    help: "Cuenta los niveles de tu variable independiente (VI).",
+    options: OPT.ivCount,
+    when: s => ["comparar", "cambio"].includes(s.objective) && !!s.dvType },
+  { field: "design", short: "Diseño",
+    q: s => s.objective === "cambio" ? "¿Cómo es tu diseño de medidas repetidas?" : "¿Los grupos son independientes o son las mismas personas?",
+    help: "Si las mismas personas aportan datos a más de una condición, las observaciones están relacionadas.",
+    options: s => s.objective === "cambio"
+      ? OPT.design.filter(o => o.value !== "independientes")
+      : (s.ivCount === "factorial" ? OPT.design : OPT.design.filter(o => o.value !== "mixto")),
+    when: s => ["comparar", "cambio"].includes(s.objective) && !!s.ivCount },
+  { field: "multipleDV", short: "Varias VDs",
+    q: "¿Tienes además otras VDs continuas que quieras analizar juntas?",
+    help: "Si las VDs están correlacionadas y forman un constructo, un análisis multivariante controla el error tipo I.",
+    options: OPT.multipleDV,
+    when: s => s.objective === "comparar" && s.ivCount === "factorial" && s.dvType === "continua" && s.design === "independientes" },
+  { field: "tableSize", short: "Tamaño de tabla",
+    q: "¿De qué tamaño es tu tabla de contingencia?",
+    help: "Filas = categorías de una variable; columnas = categorías de la otra.",
+    options: OPT.tableSize,
+    when: s => isChiPath(s) && s.objective !== "una_muestra" && !(s.objective === "comparar" && s.dvType === "dicotomica" && s.ivCount === "2") },
+  { field: "expectedFreq", short: "Frecuencias esperadas",
+    q: "¿Cómo son las frecuencias esperadas de tu tabla?",
+    help: () => (
+      <span>En SPSS: <span className="mono">Tablas cruzadas → Casillas → marcar 'Esperado'</span>. Al pie de la tabla de Chi-cuadrado aparece “<i>n</i> casillas (<i>x</i>%) han esperado un recuento menor que 5”. Regla de Cochran: ninguna esperada &lt; 1 y no más del 20% &lt; 5.</span>
+    ),
+    options: OPT.expectedFreq,
+    when: s => isChiPath(s) },
+  { field: "sample", short: "Tamaño de muestra",
+    q: s => ["comparar", "cambio", "multivariante"].includes(s.objective) && s.design !== "pareados" && s.objective !== "cambio"
+      ? "¿Cuántos casos tiene tu grupo más pequeño?"
+      : "¿Cuántos casos tienes en total?",
+    help: "Este dato decide qué prueba de normalidad conviene y qué tan robustas son las pruebas paramétricas (teorema del límite central).",
+    options: OPT.sample,
+    when: s => contPath(s) && (["comparar", "cambio"].includes(s.objective) ? !!s.design : true) },
+  { field: "normality", short: "Normalidad",
+    q: "Con la prueba de normalidad adecuada para tu n, ¿tu VD se distribuye normalmente?",
+    help: s => <NormalityInline s={s} />,
+    options: OPT.normality,
+    when: s => contPath(s) && !!s.sample },
+  { field: "equalVar", short: "Homogeneidad de varianzas",
+    q: "¿Las varianzas son homogéneas entre grupos (prueba de Levene)?",
+    help: () => <span>SPSS la reporta en la t para muestras independientes y en <span className="mono">ANOVA de un factor → Opciones → Prueba de homogeneidad de las varianzas</span>. p &gt; .05 → varianzas iguales.</span>,
+    options: OPT.equalVar,
+    when: s => s.objective === "comparar" && s.dvType === "continua" && s.design === "independientes" && !!s.normality && s.normality !== "no" },
+  { field: "equalN", short: "Tamaños de grupo",
+    q: "¿Tus grupos tienen tamaños similares?",
+    help: "Influye en qué prueba post hoc conviene usar.",
+    options: OPT.equalN,
+    when: s => s.objective === "comparar" && s.dvType === "continua" && s.design === "independientes" && s.ivCount === "3+" && s.normality !== "no" && !!s.equalVar },
+  { field: "postHocGoal", short: "Comparaciones posteriores",
+    q: "Si la prueba global resulta significativa, ¿qué comparaciones te interesan?",
+    help: "Esto define el tipo de prueba post hoc o de contraste.",
+    options: OPT.postHocGoal,
+    when: s => ["comparar", "cambio"].includes(s.objective) && s.ivCount === "3+" && !!s.design && ["continua", "ordinal"].includes(s.dvType) },
+  { field: "nPred", short: "Predictores",
+    q: "¿Cuántos predictores tiene tu modelo?",
+    help: "Regla práctica: al menos 10–20 casos por predictor en regresión lineal; 10 eventos por predictor en logística.",
+    options: OPT.nPred,
+    when: s => s.objective === "predecir" && !!s.dvType },
+  { field: "hasCovariates", short: "Covariables",
+    q: "¿Quieres controlar una o más covariables continuas?",
+    help: "Ej.: edad, puntaje basal, años de escolaridad. Controlarlas reduce varianza de error y sesgos.",
+    options: OPT.hasCovariates,
+    when: s => (s.objective === "comparar" && s.dvType === "continua" && s.design === "independientes" && !!s.ivCount)
+      || (s.objective === "relacion" && s.dvType === "continua")
+      || (s.objective === "predecir" && s.dvType === "continua")
+      || s.objective === "multivariante" },
 ];
 
-const dvTypes = [
-  { value: "continua", label: "Cuantitativa continua" },
-  { value: "ordinal", label: "Ordinal" },
-  { value: "nominal", label: "Nominal / categórica" },
-  { value: "dicotomica", label: "Dicotómica (sí/no, caso/control)" },
-  { value: "conteo", label: "Conteo / frecuencia" },
-  { value: "tiempo", label: "Tiempo hasta evento (con censura)" },
+const getOpts = (st, s) => typeof st.options === "function" ? st.options(s) : st.options;
+const getText = (v, s) => typeof v === "function" ? v(s) : v;
+const optLabel = (st, s, v) => (getOpts(st, s).find(o => o.value === v) || {}).label || v;
+
+function resolve(raw) {
+  const clean = {};
+  if (raw.objective === "asociacion_cat") clean.dvType = "nominal";
+  if (raw.objective === "supervivencia") clean.dvType = "tiempo";
+  if (raw.objective === "multivariante") { clean.dvType = "continua"; clean.multipleDV = "si"; }
+  const steps = [];
+  for (const st of STEPS) {
+    if (st.when(clean)) {
+      steps.push(st);
+      const v = raw[st.field];
+      if (v && getOpts(st, clean).some(o => o.value === v)) clean[st.field] = v;
+    }
+  }
+  return { clean, steps };
+}
+
+/* ============================================================
+   MOTOR DE SUGERENCIAS (v3)
+   ============================================================ */
+function suggestTests(s) {
+  const out = [];
+  const push = (key, why, level = "principal") => { if (!out.find(o => o.key === key)) out.push({ key, why, level }); };
+  const { objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV, expectedFreq, tableSize, nPred } = s;
+
+  const nonNormal = normality === "no";
+  const paired = design === "pareados" || design === "mixto";
+  const small = sample === "lt30";
+  const robust = ["30to50", "50to300", "gt300"].includes(sample);
+  const lowExp = expectedFreq === "bajo";
+  const chi = (why, isRxC) => {
+    if (lowExp) {
+      push("fisher", isRxC
+        ? "Frecuencias esperadas bajas en tabla R×C: usa la exacta de Fisher-Freeman-Halton o agrupa categorías con sentido teórico."
+        : "Frecuencias esperadas bajas en tabla 2×2: la exacta de Fisher es la opción correcta.");
+      push("chi_independencia", isRxC
+        ? "Solo si agrupas categorías y entonces se cumplen las frecuencias esperadas."
+        : "No recomendable con esperadas < 5; se muestra como referencia.", "alternativa");
+    } else {
+      push("chi_independencia", why);
+      if (expectedFreq === "nose") push("fisher", "Si al revisar la tabla encuentras esperadas < 5, cambia a Fisher.", "alternativa");
+    }
+  };
+
+  // ── UNA MUESTRA ───────────────────────────────────────────
+  if (objective === "una_muestra") {
+    if (dvType === "continua") {
+      if (nonNormal && !robust) push("wilcoxon_una_muestra", "Comparas con un valor de referencia y la distribución no es normal con n pequeño.");
+      else push("t_una_muestra", nonNormal
+        ? "Con n ≥ 30 la t es robusta a desviaciones moderadas de la normalidad (teorema del límite central)."
+        : "Comparas una media con un valor teórico o poblacional conocido.");
+      if (nonNormal && robust) push("wilcoxon_una_muestra", "Prefiérela si la asimetría es severa o hay atípicos extremos.", "alternativa");
+      if (!nonNormal && small) push("wilcoxon_una_muestra", "Con n < 30, contrasta con la alternativa no paramétrica.", "alternativa");
+    } else if (dvType === "ordinal") {
+      push("wilcoxon_una_muestra", "Con VD ordinal, compara la mediana con un valor hipotético.");
+    } else if (dvType === "dicotomica") {
+      push("z_proporciones", "Evalúa si la proporción observada difiere de un valor teórico (prueba binomial / Z).");
+    } else if (dvType === "nominal") {
+      push("chi_bondad", lowExp
+        ? "Con esperadas bajas, agrupa categorías con sentido teórico antes de aplicarla."
+        : "Comparas la distribución observada de categorías con proporciones esperadas.");
+    }
+  }
+
+  // ── COMPARAR / CAMBIO ─────────────────────────────────────
+  if (objective === "comparar" || objective === "cambio") {
+    const isChange = objective === "cambio" || paired;
+
+    if (dvType === "continua") {
+      if (ivCount === "factorial") {
+        if (design === "mixto") push("modelo_mixto", "Combinas un factor entre grupos y otro intra-sujetos (ANOVA mixto / modelo lineal mixto).");
+        else if (design === "pareados") push("rm_anova", "Dos o más factores intra-sujetos: ANOVA factorial de medidas repetidas.");
+        else push("anova_factorial", "Dos o más factores cruzados: evalúa efectos principales e interacción.");
+        if (multipleDV === "si") push("manova", "Con varias VDs continuas relacionadas, MANOVA es la extensión natural.", "alternativa");
+        if (hasCovariates === "si") push("ancova", "Añade covariables continuas para controlar varianza residual.", "alternativa");
+        if (nonNormal && !robust) push("modelo_mixto", "Con no normalidad y n pequeño, considera modelos robustos o transformar la VD.", "alternativa");
+      } else if (ivCount === "2") {
+        if (isChange) {
+          if (nonNormal && !robust) {
+            push("wilcoxon_pareado", "Dos mediciones relacionadas con diferencias no normales y n pequeño.");
+            push("signos", "Si las diferencias tampoco son simétricas.", "alternativa");
+          } else {
+            push("t_pareada", nonNormal
+              ? "Con n ≥ 30 la t pareada es robusta a desviaciones moderadas (teorema del límite central)."
+              : "Comparas dos mediciones en las mismas personas (pre-post o dos condiciones).");
+            if (nonNormal || small) push("wilcoxon_pareado", "Contrasta con la alternativa no paramétrica.", "alternativa");
+          }
+        } else {
+          if (nonNormal && !robust) {
+            push("mann_whitney", "Dos grupos independientes con VD no normal y n pequeño.");
+          } else if (nonNormal) {
+            push("t_welch", "Con n ≥ 30 por grupo, la t de Welch es robusta a no normalidad moderada y no exige varianzas iguales.");
+            push("mann_whitney", "Prefiérela si hay asimetría severa o atípicos extremos.", "alternativa");
+          } else if (equalVar === "no") {
+            push("t_welch", "Dos grupos independientes con varianzas desiguales.");
+            push("mann_whitney", "Alternativa no paramétrica robusta.", "alternativa");
+          } else {
+            push("t_independientes", "Dos grupos independientes con VD continua y supuestos razonables.");
+            if (equalVar === "nose") push("t_welch", "Si no verificaste Levene, Welch es la opción segura: no asume varianzas iguales.", "alternativa");
+            if (small) push("mann_whitney", "Con n < 30, contrasta con la alternativa no paramétrica.", "alternativa");
+          }
+          if (hasCovariates === "si") push("ancova", "Controla covariables continuas (edad, puntaje basal).", "alternativa");
+        }
+      } else if (ivCount === "3+") {
+        if (isChange) {
+          if (nonNormal && !robust) push("friedman", "Tres o más mediciones relacionadas con VD no normal y n pequeño.");
+          else {
+            push("rm_anova", "Tres o más mediciones o condiciones en las mismas personas.");
+            if (nonNormal) push("friedman", "Prefiérela si la asimetría es severa.", "alternativa");
+          }
+          if (design === "mixto") push("modelo_mixto", "Si además tienes un factor entre sujetos, un modelo mixto es lo apropiado.", "alternativa");
+        } else {
+          if (nonNormal && !robust) push("kruskal_wallis", "Tres o más grupos independientes con VD no normal y n pequeño.");
+          else if (nonNormal) {
+            push("welch_anova", "Con n ≥ 30 por grupo, el ANOVA de Welch tolera no normalidad moderada y varianzas desiguales.");
+            push("kruskal_wallis", "Prefiérela si la asimetría es severa o hay atípicos extremos.", "alternativa");
+          } else if (equalVar === "no") {
+            push("welch_anova", "ANOVA robusto a la heterogeneidad de varianzas.");
+            push("kruskal_wallis", "Alternativa no paramétrica.", "alternativa");
+          } else {
+            push("anova_una_via", "Tres o más grupos independientes con VD continua y supuestos razonables.");
+            if (equalVar === "nose") push("welch_anova", "Si no verificaste Levene, Welch es la opción segura.", "alternativa");
+          }
+          if (hasCovariates === "si") push("ancova", "Controla covariables continuas relevantes (edad, puntaje basal).", "alternativa");
+        }
+      }
+    }
+
+    if (dvType === "ordinal") {
+      if (ivCount === "2") push(isChange ? "wilcoxon_pareado" : "mann_whitney", "VD ordinal con dos grupos o condiciones.");
+      else if (ivCount === "3+") push(isChange ? "friedman" : "kruskal_wallis", "VD ordinal con tres o más grupos o condiciones.");
+      else if (ivCount === "factorial") {
+        push("reg_logistica_ord", "Con varios factores y VD ordinal, la regresión ordinal permite evaluar efectos e interacción.");
+        push("modelo_mixto", "Si hay medidas repetidas, considera modelos mixtos ordinales.", "alternativa");
+      }
+    }
+
+    if (dvType === "dicotomica") {
+      if (ivCount === "factorial") push("reg_logistica_bin", "Con varios factores y VD dicotómica, la logística binaria evalúa efectos e interacción.");
+      else if (isChange && ivCount === "2") push("mcnemar", "Variable dicotómica medida dos veces en las mismas personas.");
+      else if (isChange && ivCount === "3+") push("cochran_q", "Tres o más mediciones dicotómicas en las mismas personas.");
+      else if (ivCount === "2") {
+        chi("Comparas una proporción entre dos grupos independientes (tabla 2×2).", false);
+        if (!lowExp) push("z_proporciones", "Equivale a χ² 2×2; útil para interpretar la diferencia de proporciones.", "alternativa");
+      } else if (ivCount === "3+") chi("Comparas una proporción entre tres o más grupos independientes.", true);
+    }
+
+    if (dvType === "nominal") {
+      if (ivCount === "factorial") push("reg_logistica_multi", "Con varios factores y VD nominal, la logística multinomial evalúa sus efectos.");
+      else if (isChange) push("mcnemar", "Categorías medidas dos veces en las mismas personas (McNemar-Bowker si hay 3+ categorías).");
+      else chi("Comparas la distribución de categorías entre grupos.", true);
+    }
+
+    if (dvType === "conteo") {
+      push("poisson", "Modela el conteo en función del grupo; permite comparar tasas.");
+      push("bin_negativa", "Si hay sobredispersión (varianza > media), preferir binomial negativa.", "alternativa");
+    }
+  }
+
+  // ── RELACIONAR ────────────────────────────────────────────
+  if (objective === "relacion") {
+    if (dvType === "continua") {
+      if (nonNormal) {
+        push("spearman", "Relación monotónica entre variables cuantitativas con distribución no normal o atípicos.");
+        push("kendall", "Alternativa robusta, especialmente con n pequeño o muchos empates.", "alternativa");
+      } else {
+        push("pearson", "Relación lineal entre dos variables cuantitativas.");
+        push("spearman", "Contrasta con la versión por rangos si sospechas no linealidad o atípicos.", "alternativa");
+      }
+      if (hasCovariates === "si") push("parcial", "Controla el efecto de una tercera variable continua.", "alternativa");
+    } else if (dvType === "ordinal") {
+      push(small ? "kendall" : "spearman", "Al menos una variable es ordinal.");
+      push(small ? "spearman" : "kendall", "Kendall es preferible con muestras pequeñas o muchos empates.", "alternativa");
+    } else if (dvType === "dicotomica") {
+      push("punto_biserial", "Relación entre una variable dicotómica y una continua.");
+    } else if (dvType === "nominal") {
+      chi("Asociación entre variables categóricas; usa V de Cramer como tamaño de efecto.", tableSize === "rxc");
+    }
+  }
+
+  // ── PREDECIR ──────────────────────────────────────────────
+  if (objective === "predecir") {
+    if (dvType === "continua") {
+      if (nPred === "varios") {
+        push("reg_lineal_multiple", "VD continua con dos o más predictores.");
+        if (hasCovariates === "si") push("reg_jerarquica", "Introduce primero las covariables y luego tus predictores de interés para ver su aporte incremental (ΔR²).", "alternativa");
+      } else {
+        push("reg_lineal_simple", "VD continua y un predictor.");
+        if (hasCovariates === "si") push("reg_jerarquica", "Para evaluar el predictor después de controlar covariables.", "alternativa");
+      }
+    } else if (dvType === "dicotomica") push("reg_logistica_bin", "VD con dos categorías (presencia/ausencia, caso/control).");
+    else if (dvType === "nominal") push("reg_logistica_multi", "VD con tres o más categorías sin orden.");
+    else if (dvType === "ordinal") push("reg_logistica_ord", "VD con categorías ordenadas; verifica odds proporcionales.");
+    else if (dvType === "conteo") {
+      push("poisson", "Conteo de eventos por unidad de tiempo o persona.");
+      push("bin_negativa", "Si la varianza supera a la media (sobredispersión).", "alternativa");
+    } else if (dvType === "tiempo") {
+      push("cox", "Efecto de predictores sobre el riesgo de un evento.");
+      push("kaplan_meier", "Descripción y comparación de curvas por grupos (log-rank).", "alternativa");
+    }
+  }
+
+  if (objective === "asociacion_cat") chi("Asociación entre dos variables categóricas.", tableSize === "rxc");
+
+  if (objective === "supervivencia") {
+    push("kaplan_meier", "Curvas de supervivencia y comparación entre grupos (log-rank).");
+    push("cox", "Modelo multivariado para cuantificar el efecto de predictores.", "alternativa");
+  }
+
+  if (objective === "multivariante") {
+    push("manova", "Varias VDs continuas con uno o más factores.");
+    if (hasCovariates === "si") push("ancova", "Con covariables, la extensión es MANCOVA (mismo menú Multivariante, añadiendo covariables).", "alternativa");
+  }
+
+  if (out.length === 0) push("manual", "La combinación actual es ambigua o requiere más detalle metodológico.");
+  return out;
+}
+
+/* ============================================================
+   REGLAS DE NORMALIDAD SEGÚN n
+   ============================================================ */
+const NORM_RANGES = [
+  { key: "lt30", label: "n < 30", test: "Shapiro-Wilk",
+    detail: "Es la más potente con muestras pequeñas, pero aun así tiene poca potencia: un p > .05 no garantiza normalidad. Compleméntala con el gráfico Q-Q y la z de asimetría y curtosis.",
+    z: "|z| < 1.96" },
+  { key: "30to50", label: "30 ≤ n < 50", test: "Shapiro-Wilk",
+    detail: "Sigue siendo la prueba de elección. Revisa también el Q-Q y la z de asimetría y curtosis.",
+    z: "|z| < 1.96" },
+  { key: "50to300", label: "50 ≤ n ≤ 300", test: "Shapiro-Wilk o K-S con corrección de Lilliefors",
+    detail: "Shapiro-Wilk sigue siendo válida (SPSS la calcula hasta n = 5000). Kolmogorov-Smirnov solo con la corrección de Lilliefors.",
+    z: "|z| < 3.29" },
+  { key: "gt300", label: "n > 300", test: "Gráficos + valores absolutos",
+    detail: "Las pruebas formales detectan desviaciones triviales y casi siempre salen significativas. Decide con histograma y Q-Q.",
+    z: "|asimetría| ≤ 2 y |curtosis| ≤ 7" },
 ];
 
-const ivCounts = [
-  { value: "1", label: "Una sola muestra vs. valor fijo" },
-  { value: "2", label: "Dos grupos / dos condiciones" },
-  { value: "3+", label: "Tres o más grupos / condiciones" },
-  { value: "factorial", label: "Dos o más factores (diseño factorial)" },
-];
+function normalityWhere(s) {
+  if (s.objective === "predecir") return "En los residuos del modelo (Regresión → Guardar → Residuos tipificados; luego Explorar sobre esa nueva variable).";
+  if (s.design === "mixto" || s.ivCount === "factorial") return "En cada combinación de grupo y condición, o en los residuos del modelo.";
+  if (s.objective === "cambio" || s.design === "pareados") return "En las diferencias entre mediciones (Transformar → Calcular variable: post − pre) y luego Explorar sobre esa variable.";
+  if (s.objective === "comparar" && s.design === "independientes") return "Dentro de cada grupo por separado (Explorar → poner la VI en 'Lista de factores').";
+  if (s.objective === "relacion") return "En cada una de las dos variables; revisa también el diagrama de dispersión (linealidad y atípicos).";
+  if (s.objective === "multivariante") return "En cada VD dentro de cada grupo (normalidad multivariante: revisa también distancias de Mahalanobis).";
+  return "En la variable de interés.";
+}
 
-const designs = [
-  { value: "independientes", label: "Grupos independientes" },
-  { value: "pareados", label: "Pareados / mismas personas" },
-  { value: "mixto", label: "Mixto (intra + inter)" },
-  { value: "transversal", label: "Transversal / no aplica" },
-];
+function NormalityInline({ s }) {
+  const r = NORM_RANGES.find(x => x.key === s.sample);
+  return (
+    <div className="space-y-1">
+      {r ? (
+        <div>Con <b>{r.label}</b> usa <b>{r.test}</b>; criterio complementario: <span className="mono">{r.z}</span>.</div>
+      ) : (
+        <div>Como no conoces tu n, revisa la tabla de normalidad en la sección de supuestos.</div>
+      )}
+      <div><span className="serif italic">Dónde evaluarla:</span> {normalityWhere(s)}</div>
+    </div>
+  );
+}
 
-const normalityOpts = [
-  { value: "si", label: "Sí / aproximadamente normal" },
-  { value: "no", label: "No / sesgada" },
-  { value: "nose", label: "No lo sé" },
-];
+/* ============================================================
+   POST HOC
+   ============================================================ */
+function postHocAdvice(s, results) {
+  const p = results[0] && results[0].level === "principal" ? results[0].key : null;
+  const goal = s.postHocGoal;
+  const items = [];
+  const add = (name, when, spss, rec = false) => items.push({ name, when, spss, rec });
+  let title = "";
 
-const varianceOpts = [
-  { value: "si", label: "Sí / semejantes" },
-  { value: "no", label: "No / desiguales" },
-  { value: "nose", label: "No lo sé" },
-];
+  if (p === "anova_una_via") {
+    title = "Después del ANOVA de un factor";
+    if (goal === "control") add("Dunnett", "Comparas cada grupo solo contra el control: menos comparaciones, más potencia.", "ANOVA de un factor → Post hoc → Dunnett → elegir la categoría de control (primera o última)", true);
+    if (goal === "planeadas") add("Contrastes planeados (o Bonferroni / Holm)", "Pocas hipótesis específicas definidas antes de ver los datos.", "ANOVA de un factor → Contrastes (coeficientes), o Post hoc → Bonferroni", true);
+    if (s.equalN === "no") {
+      add("Gabriel", "Varianzas iguales y tamaños de grupo ligeramente distintos.", "ANOVA de un factor → Post hoc → Gabriel", !goal || goal === "todas");
+      add("Hochberg GT2", "Varianzas iguales y tamaños de grupo muy distintos.", "ANOVA de un factor → Post hoc → GT2 de Hochberg");
+    } else {
+      add("Tukey HSD", "Todas las comparaciones por pares con varianzas y tamaños similares.", "ANOVA de un factor → Post hoc → Tukey", !goal || goal === "todas");
+    }
+    add("Games-Howell", "Si Levene resulta significativa o tienes dudas sobre las varianzas.", "ANOVA de un factor → Post hoc → Games-Howell");
+  } else if (p === "welch_anova") {
+    title = "Después del ANOVA de Welch";
+    if (goal === "control") add("T3 de Dunnett", "Comparaciones contra control con varianzas desiguales.", "ANOVA de un factor → Post hoc → T3 de Dunnett", true);
+    add("Games-Howell", "No asume varianzas ni tamaños iguales; la opción estándar tras Welch.", "ANOVA de un factor → Post hoc → Games-Howell", goal !== "control");
+  } else if (p === "kruskal_wallis") {
+    title = "Después de Kruskal-Wallis";
+    add("Dunn con ajuste de Bonferroni (o Holm)", "Comparaciones por pares basadas en rangos.", "Pruebas no paramétricas → Muestras independientes → en el Visor de modelos, 'Comparaciones por parejas'", true);
+    if (goal === "control") add("U de Mann-Whitney contra el control", "Solo k − 1 comparaciones; ajusta α dividiendo entre k − 1.", "Pruebas no paramétricas → Muestras independientes, un par a la vez");
+  } else if (p === "rm_anova") {
+    title = "Después del ANOVA de medidas repetidas";
+    add("Comparaciones por pares con Bonferroni", "Compara las medias marginales de cada momento o condición.", "Medidas repetidas → Medias marginales estimadas → Comparar efectos principales → Ajuste: Bonferroni", true);
+    if (goal === "planeadas" || goal === "control") add("Contrastes (simple, repetido, polinómico)", "Simple: cada momento vs. basal; repetido: cada momento vs. el anterior; polinómico: tendencias.", "Medidas repetidas → Contrastes");
+  } else if (p === "friedman") {
+    title = "Después de Friedman";
+    add("Dunn-Bonferroni por pares", "Comparaciones por pares basadas en rangos.", "Pruebas no paramétricas → Muestras relacionadas → Visor de modelos → 'Comparaciones por parejas'", true);
+    add("Wilcoxon por pares con Bonferroni", "Alternativa manual; divide α entre el número de comparaciones.", "Pruebas no paramétricas → Muestras relacionadas, un par a la vez");
+  } else if (p === "anova_factorial" || (p === "modelo_mixto" && s.ivCount === "factorial") || (p === "rm_anova" && s.ivCount === "factorial")) {
+    title = "Después de un diseño factorial";
+    add("Efectos simples", "Si la interacción es significativa, analiza el efecto de un factor dentro de cada nivel del otro, antes que los efectos principales.", "Sintaxis: /EMMEANS=TABLES(A*B) COMPARE(A) ADJ(BONFERRONI)", true);
+    add("Post hoc en efectos principales", "Solo si la interacción no es significativa y el factor tiene 3+ niveles (Tukey o Games-Howell).", "Univariante → Post hoc");
+  } else if (p === "cochran_q") {
+    title = "Después de la Q de Cochran";
+    add("McNemar por pares con Bonferroni", "Compara cada par de mediciones dicotómicas.", "Pruebas no paramétricas → Muestras relacionadas, un par a la vez", true);
+  } else if ((p === "chi_independencia" || p === "fisher") && (s.tableSize === "rxc" || s.ivCount === "3+")) {
+    title = "Después de χ² en tablas R×C";
+    add("Residuos tipificados corregidos", "Indican qué celdas se alejan de lo esperado: |z| > 1.96 (p < .05).", "Tablas cruzadas → Casillas → Residuos: 'Tipificados corregidos'", true);
+    add("Comparar proporciones de columna", "Pruebas z por pares con ajuste de Bonferroni (letras de subíndice).", "Tablas cruzadas → Casillas → 'Comparar las proporciones de columna' + 'Ajustar valores p (Bonferroni)'");
+  }
 
-const sampleOpts = [
-  { value: "peq", label: "Pequeña (n < 30 o celdas con esperadas < 5)" },
-  { value: "med", label: "Mediana (30 ≤ n < 100)" },
-  { value: "gran", label: "Grande (n ≥ 100)" },
-  { value: "nose", label: "No lo sé" },
-];
+  if (!items.length) return null;
+  return {
+    title, items,
+    notes: [
+      "Aplica las pruebas post hoc solo si la prueba global (ómnibus) es significativa; los contrastes planeados pueden hacerse aunque no lo sea.",
+      "Con k grupos hay k(k − 1)/2 comparaciones por pares: Bonferroni usa α / número de comparaciones; Holm es menos conservador."
+    ]
+  };
+}
+
+/* ============================================================
+   RUTA DE ANÁLISIS (orden de decisiones)
+   ============================================================ */
+function buildRoadmap(s, results) {
+  const steps = [];
+  const add = (title, detail) => steps.push({ title, detail });
+  const main = results.find(r => r.level === "principal");
+  const t = main ? TESTS[main.key] : null;
+  const keys = results.map(r => r.key);
+  const indepComp = s.objective === "comparar" && s.design === "independientes" && s.dvType === "continua";
+
+  add("Depura y explora tus datos", "Errores de captura, valores perdidos y atípicos (Explorar → diagramas de caja; puntajes z mayores que |3.29|).");
+
+  if (contPath(s)) {
+    const r = NORM_RANGES.find(x => x.key === s.sample);
+    add("Evalúa la normalidad", `${r ? `Con ${r.label}: ${r.test} (criterio complementario ${r.z}). ` : "Elige la prueba según tu n (ver tabla de normalidad). "}${normalityWhere(s)}`);
+  }
+  if (indepComp && s.normality !== "no" && ["2", "3+", "factorial"].includes(s.ivCount)) {
+    add("Evalúa la homogeneidad de varianzas (Levene)", "p > .05 → asume varianzas iguales. p ≤ .05 → usa la versión de Welch" + (s.ivCount === "3+" ? " y Games-Howell como post hoc." : "."));
+  }
+  if (isChiPath(s)) {
+    add("Revisa las frecuencias esperadas", "Ninguna < 1 y no más del 20% de celdas < 5 (Cochran). Si no se cumple: Fisher (2×2), Fisher-Freeman-Halton o agrupar categorías (R×C).");
+  }
+  if (keys.includes("ancova") && s.hasCovariates === "si") {
+    add("Verifica los supuestos de la covariable", "Relación lineal covariable–VD y homogeneidad de pendientes (interacción factor × covariable no significativa).");
+  }
+  if (main && main.key === "rm_anova") {
+    add("Revisa la esfericidad (Mauchly)", "Si p ≤ .05, corrige los grados de libertad: Greenhouse-Geisser (ε < .75) o Huynh-Feldt (ε ≥ .75).");
+  }
+  if (t && main.key !== "manual") add(`Aplica la prueba principal: ${t.name}`, main.why);
+  if (s.ivCount === "factorial") add("Interpreta primero la interacción", "Si es significativa, analiza efectos simples; los efectos principales pueden ser engañosos.");
+  if (main && ["reg_lineal_simple", "reg_lineal_multiple", "reg_jerarquica"].includes(main.key)) {
+    add("Diagnostica el modelo", "Normalidad de residuos, homocedasticidad (gráfico ZRESID vs. ZPRED), multicolinealidad (VIF < 10), independencia (Durbin-Watson ≈ 2) y casos influyentes (Cook < 1).");
+  }
+  if (main && ["reg_logistica_bin", "reg_logistica_multi", "reg_logistica_ord"].includes(main.key)) {
+    add("Evalúa el ajuste del modelo", "Hosmer-Lemeshow (binaria), pseudo R², tabla de clasificación y multicolinealidad; en ordinal, el test de líneas paralelas.");
+  }
+  const ph = postHocAdvice(s, results);
+  if (ph) {
+    const rec = ph.items.find(i => i.rec) || ph.items[0];
+    add("Si p ≤ α, haz las comparaciones posteriores", `${rec.name}. ${rec.when}`);
+  }
+  if (t && t.effect && t.effect !== "—") add("Calcula el tamaño de efecto", `${t.effect}, con su intervalo de confianza al 95%.`);
+  add("Reporta en formato APA 7", "Estadístico, grados de libertad, p exacta (p = .032, o p < .001), tamaño de efecto e IC 95%, además de los descriptivos por grupo.");
+  return steps;
+}
 
 /* ============================================================
    GENERADOR DE HIPÓTESIS
@@ -495,14 +1027,14 @@ const sampleOpts = [
 function getLabelNames(state) {
   const { objective, design } = state;
   const paired = design === "pareados" || design === "mixto";
-  if (objective === "una_muestra")   return { a: "Tu variable", b: "Valor teórico", aPh: "Ej.: estrés percibido", bPh: "Ej.: 50 (media poblacional)" };
-  if (objective === "relacion")       return { a: "Variable X", b: "Variable Y", aPh: "Ej.: horas de estudio", bPh: "Ej.: promedio académico" };
-  if (objective === "predecir")       return { a: "Predictor (X)", b: "Variable a predecir (Y)", aPh: "Ej.: ansiedad", bPh: "Ej.: rendimiento" };
-  if (objective === "asociacion_cat") return { a: "Variable categórica 1", b: "Variable categórica 2", aPh: "Ej.: sexo", bPh: "Ej.: tipo de carrera" };
+  if (objective === "una_muestra")   return { a: "Tu variable", b: "Valor teórico", aPh: "Ej.: estrés percibido / glucosa en ayuno", bPh: "Ej.: 50 (norma poblacional)" };
+  if (objective === "relacion")       return { a: "Variable X", b: "Variable Y", aPh: "Ej.: horas de sueño / IMC", bPh: "Ej.: rendimiento académico / presión arterial" };
+  if (objective === "predecir")       return { a: "Predictor (X)", b: "Variable a predecir (Y)", aPh: "Ej.: carga laboral", bPh: "Ej.: burnout" };
+  if (objective === "asociacion_cat") return { a: "Variable categórica 1", b: "Variable categórica 2", aPh: "Ej.: sexo", bPh: "Ej.: especialidad elegida" };
   if (objective === "supervivencia")  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: tratamiento A", bPh: "Ej.: tratamiento B" };
   if (objective === "multivariante")  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: experimental", bPh: "Ej.: control" };
   if (paired) return { a: "Momento / condición 1", b: "Momento / condición 2", aPh: "Ej.: pre-test", bPh: "Ej.: post-test" };
-  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: ruido alto", bPh: "Ej.: ruido bajo" };
+  return { a: "Grupo 1", b: "Grupo 2", aPh: "Ej.: turno nocturno", bPh: "Ej.: turno diurno" };
 }
 
 function buildHypotheses(state, labels) {
@@ -538,6 +1070,12 @@ function buildHypotheses(state, labels) {
         { id: "bilateral", notation: "p ≠ p₀", prose: `La proporción difiere del valor teórico.` },
         { id: "greater",   notation: "p > p₀", prose: `La proporción es mayor al valor teórico.` },
         { id: "less",      notation: "p < p₀", prose: `La proporción es menor al valor teórico.` },
+      ]};
+    if (dvType === "nominal") return {
+      parameter: "π_i (proporciones por categoría)",
+      h0: { notation: "π_i = π_i0  para toda i", prose: `La distribución de ${A} coincide con las proporciones esperadas.` },
+      alternatives: [
+        { id: "bilateral", notation: "∃ i : π_i ≠ π_i0", prose: `Al menos una categoría de ${A} difiere de lo esperado.` },
       ]};
   }
 
@@ -770,182 +1308,6 @@ function buildHypotheses(state, labels) {
 }
 
 /* ============================================================
-   MOTOR DE SUGERENCIAS
-   ============================================================ */
-function suggestTests(s) {
-  const out = [];
-  const push = (key, why, level = "principal") => out.push({ key, why, level });
-
-  const { objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV } = s;
-
-  const nonNormal = normality === "no";
-  const paired = design === "pareados" || design === "mixto";
-  const smallSample = sample === "peq";
-
-  // ── UNA MUESTRA ───────────────────────────────────────────
-  if (objective === "una_muestra") {
-    if (dvType === "continua") {
-      push(nonNormal ? "wilcoxon_una_muestra" : "t_una_muestra",
-           "Comparas una media con un valor teórico o poblacional conocido.");
-      if (!nonNormal && smallSample)
-        push("wilcoxon_una_muestra", "Con muestra pequeña, considera también la alternativa no paramétrica.", "alternativa");
-    } else if (dvType === "ordinal") {
-      push("wilcoxon_una_muestra", "Con VD ordinal, compara la mediana con un valor hipotético.");
-    } else if (dvType === "dicotomica") {
-      push("z_proporciones", "Evalúa si la proporción observada difiere de un valor teórico (prueba binomial / Z).");
-    }
-  }
-
-  // ── COMPARAR GRUPOS ───────────────────────────────────────
-  if (objective === "comparar" || objective === "cambio") {
-    const isChange = objective === "cambio" || paired;
-
-    if (dvType === "continua") {
-      if (ivCount === "factorial") {
-        push("anova_factorial", "Tienes dos o más factores cruzados y quieres evaluar efectos principales e interacciones.");
-        if (multipleDV === "si") push("manova", "Si además tienes varias VDs continuas, MANOVA es la extensión natural.", "alternativa");
-        if (hasCovariates === "si") push("ancova", "Añade covariables continuas para controlar varianza residual.", "alternativa");
-        if (design === "mixto") push("modelo_mixto", "Con factores intra e inter sujetos combinados, un modelo mixto es más flexible.", "alternativa");
-      } else if (ivCount === "2") {
-        if (isChange) {
-          push(nonNormal ? "wilcoxon_pareado" : "t_pareada",
-               "Comparas dos mediciones en las mismas personas (pre-post o dos condiciones).");
-          if (nonNormal) push("signos", "Alternativa útil si las diferencias no son simétricas.", "alternativa");
-        } else {
-          if (nonNormal) {
-            push("mann_whitney", "Dos grupos independientes con VD continua no normal.");
-          } else if (equalVar === "no") {
-            push("t_welch", "Dos grupos independientes con medias y varianzas desiguales.");
-            push("mann_whitney", "Alternativa no paramétrica robusta.", "alternativa");
-          } else {
-            push("t_independientes", "Dos grupos independientes con VD continua.");
-            if (smallSample) push("mann_whitney", "Con muestra pequeña, contrasta también con la alternativa no paramétrica.", "alternativa");
-          }
-        }
-      } else if (ivCount === "3+") {
-        if (isChange) {
-          push(nonNormal ? "friedman" : "rm_anova",
-               "Tres o más mediciones/condiciones en las mismas personas.");
-          if (!nonNormal && design === "mixto")
-            push("modelo_mixto", "Si además tienes un factor entre sujetos, un modelo mixto es lo apropiado.", "alternativa");
-        } else {
-          if (nonNormal) {
-            push("kruskal_wallis", "Tres o más grupos independientes con VD no normal.");
-          } else if (equalVar === "no") {
-            push("welch_anova", "ANOVA robusto a heterogeneidad de varianzas.");
-            push("kruskal_wallis", "Alternativa no paramétrica.", "alternativa");
-          } else {
-            push("anova_una_via", "Tres o más grupos independientes con VD continua.");
-          }
-          if (hasCovariates === "si") push("ancova", "Controla covariables continuas relevantes (edad, puntaje basal).", "alternativa");
-        }
-      }
-    }
-
-    if (dvType === "ordinal") {
-      if (ivCount === "2") {
-        push(isChange ? "wilcoxon_pareado" : "mann_whitney",
-             "VD ordinal con dos grupos o condiciones.");
-      } else if (ivCount === "3+") {
-        push(isChange ? "friedman" : "kruskal_wallis",
-             "VD ordinal con tres o más grupos o condiciones.");
-      } else if (ivCount === "factorial") {
-        push("modelo_mixto", "Para diseños factoriales con VD ordinal, considera modelos mixtos ordinales o análisis por rangos.", "principal");
-      }
-    }
-
-    if (dvType === "dicotomica") {
-      if (isChange && ivCount === "2") {
-        push("mcnemar", "Comparas una variable dicotómica en las mismas personas, dos momentos.");
-      } else if (isChange && ivCount === "3+") {
-        push("cochran_q", "Tres o más mediciones dicotómicas en las mismas personas.");
-      } else if (ivCount === "2") {
-        push("chi_independencia", "Comparas una proporción entre dos grupos independientes.");
-        push("z_proporciones", "Equivalente a χ² 2×2; útil cuando quieres interpretar en términos de diferencia de proporciones.", "alternativa");
-        if (smallSample) push("fisher", "Con celdas esperadas < 5 o n pequeño, usa Fisher.", "alternativa");
-      } else if (ivCount === "3+") {
-        push("chi_independencia", "Comparas una proporción entre tres o más grupos independientes.");
-        if (smallSample) push("fisher", "Con frecuencias esperadas bajas, Fisher (exacta R×C) es más seguro.", "alternativa");
-      }
-    }
-
-    if (dvType === "nominal") {
-      push("chi_independencia", "Comparas la distribución de categorías entre grupos.");
-      if (smallSample) push("fisher", "Con celdas pequeñas, prueba exacta de Fisher.", "alternativa");
-    }
-
-    if (dvType === "conteo") {
-      push("poisson", "Modela el conteo en función del grupo; permite comparar tasas.");
-      push("bin_negativa", "Si hay sobredispersión (varianza > media), preferir binomial negativa.", "alternativa");
-    }
-  }
-
-  // ── RELACIONAR ────────────────────────────────────────────
-  if (objective === "relacion") {
-    if (dvType === "continua") {
-      if (nonNormal) {
-        push("spearman", "Relación monotónica entre variables cuantitativas con distribución no normal.");
-        push("kendall", "Alternativa robusta, especialmente con n pequeño o muchos empates.", "alternativa");
-      } else {
-        push("pearson", "Relación lineal entre dos variables cuantitativas con supuesto de normalidad.");
-        push("spearman", "Contrasta con la versión por rangos si sospechas no linealidad o atípicos.", "alternativa");
-      }
-      if (hasCovariates === "si") push("parcial", "Controla el efecto de una tercera variable continua.", "alternativa");
-    } else if (dvType === "ordinal") {
-      push("spearman", "Cuando al menos una variable es ordinal.");
-      push("kendall", "Preferible con muestras pequeñas o muchos empates.", "alternativa");
-    } else if (dvType === "dicotomica") {
-      push("punto_biserial", "Relación entre una variable dicotómica y una continua.");
-    } else if (dvType === "nominal") {
-      push("chi_independencia", "Asociación entre variables categóricas; usar V de Cramer como tamaño de efecto.");
-    }
-  }
-
-  // ── PREDECIR ──────────────────────────────────────────────
-  if (objective === "predecir") {
-    if (dvType === "continua") {
-      push("reg_lineal_simple", "Una VD continua y un predictor.");
-      push("reg_lineal_multiple", "Con varios predictores o covariables.", "alternativa");
-      if (hasCovariates === "si") push("reg_jerarquica", "Evalúa el aporte incremental de bloques de variables.", "alternativa");
-    } else if (dvType === "dicotomica") {
-      push("reg_logistica_bin", "VD con dos categorías (presencia/ausencia, caso/control).");
-    } else if (dvType === "nominal") {
-      push("reg_logistica_multi", "VD con tres o más categorías sin orden.");
-    } else if (dvType === "ordinal") {
-      push("reg_logistica_ord", "VD con categorías ordenadas; verifica odds proporcionales.");
-    } else if (dvType === "conteo") {
-      push("poisson", "Conteo de eventos por unidad de tiempo/persona.");
-      push("bin_negativa", "Si la varianza supera a la media (sobredispersión).", "alternativa");
-    } else if (dvType === "tiempo") {
-      push("cox", "Efecto de predictores sobre el riesgo de un evento.");
-      push("kaplan_meier", "Descripción y comparación de curvas por grupos (log-rank).", "alternativa");
-    }
-  }
-
-  // ── ASOCIACIÓN CATEGÓRICAS ────────────────────────────────
-  if (objective === "asociacion_cat") {
-    push("chi_independencia", "Asociación entre dos variables categóricas.");
-    if (smallSample) push("fisher", "Con celdas esperadas pequeñas, Fisher es preferible.", "alternativa");
-    if (design === "pareados") push("mcnemar", "Si las mediciones son pareadas y dicotómicas, usa McNemar.", "alternativa");
-  }
-
-  // ── SUPERVIVENCIA ─────────────────────────────────────────
-  if (objective === "supervivencia") {
-    push("kaplan_meier", "Curvas de supervivencia y comparación entre grupos (log-rank).");
-    push("cox", "Modelo multivariado para cuantificar el efecto de predictores.", "alternativa");
-  }
-
-  // ── MULTIVARIANTE ─────────────────────────────────────────
-  if (objective === "multivariante") {
-    push("manova", "Varias VDs continuas con uno o más factores.");
-    if (hasCovariates === "si") push("ancova", "Si lo que cambia es solo añadir covariables continuas, considera MANCOVA (extensión).", "alternativa");
-  }
-
-  if (out.length === 0) push("manual", "La combinación actual es ambigua o requiere más detalle metodológico.");
-  return out;
-}
-
-/* ============================================================
    COMPONENTES UI
    ============================================================ */
 function Field({ label, children, hint }) {
@@ -1121,149 +1483,375 @@ function HypothesisBuilder({ state, labelA, setLabelA, labelB, setLabelB, direct
   );
 }
 
+
+/* ============================================================
+   MÓDULOS DE SUPUESTOS
+   ============================================================ */
+function ModuleCard({ tag, title, children }) {
+  return (
+    <div className="card rounded p-6 fade-in">
+      <div className="text-[11px] mono uppercase tracking-wider text-[color:var(--accent)]">{tag}</div>
+      <h3 className="serif text-2xl font-medium mt-1 mb-4 leading-tight">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function NormalityCard({ s }) {
+  return (
+    <ModuleCard tag="Supuesto · Normalidad" title="¿Qué prueba de normalidad usar según tu n?">
+      <table className="mini">
+        <thead><tr><th>Tamaño</th><th>Prueba recomendada</th><th>Criterio complementario</th></tr></thead>
+        <tbody>
+          {NORM_RANGES.map(r => (
+            <tr key={r.key} className={s.sample === r.key ? "hl" : ""}>
+              <td className="mono whitespace-nowrap">{r.label}{s.sample === r.key && <span className="text-[color:var(--accent)]"> ◂ tu caso</span>}</td>
+              <td><b>{r.test}</b><div className="text-xs text-[color:var(--ink-soft)] mt-0.5">{r.detail}</div></td>
+              <td className="mono whitespace-nowrap">{r.z}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-sm mt-4 space-y-2 text-[color:var(--ink-soft)]">
+        <p><span className="serif italic text-[color:var(--ink)]">Dónde evaluarla:</span> {normalityWhere(s)}</p>
+        <p><span className="serif italic text-[color:var(--ink)]">Regla de decisión:</span> p &gt; .05 → no se rechaza la normalidad. p ≤ .05 → hay evidencia de no normalidad: usa la alternativa no paramétrica, transforma la variable o, con n ≥ 30 por grupo y desviación moderada, apóyate en la robustez de la prueba paramétrica.</p>
+        <p><span className="serif italic text-[color:var(--ink)]">z de asimetría o curtosis</span> = estadístico ÷ su error estándar (SPSS muestra ambos en Explorar).</p>
+        <p className="text-xs">Kolmogorov-Smirnov <b>sin</b> corrección de Lilliefors no es apropiada cuando la media y la DE se estiman de la propia muestra, que es casi siempre.</p>
+      </div>
+      <details className="mt-3">
+        <summary className="text-sm font-medium flex items-center gap-2"><span className="text-[color:var(--accent)]">▸</span>Ruta en SPSS y Jamovi</summary>
+        <ol className="mt-2 pl-5 space-y-1 text-sm mono text-[color:var(--ink-soft)] list-decimal">
+          <li>Analizar → Estadísticos descriptivos → Explorar</li>
+          <li>Dependientes = VD; Lista de factores = VI (si hay grupos)</li>
+          <li>Gráficos → marcar 'Gráficos con pruebas de normalidad' (da K-S-Lilliefors, Shapiro-Wilk y Q-Q)</li>
+        </ol>
+        <p className="text-xs mt-2 text-[color:var(--muted)]"><span className="serif italic">Jamovi:</span> Exploration → Descriptives → Statistics: Shapiro-Wilk; Plots: Q-Q</p>
+      </details>
+    </ModuleCard>
+  );
+}
+
+function ChiCard({ s }) {
+  const is2x2 = s.tableSize === "2x2" || (s.objective === "comparar" && s.dvType === "dicotomica" && s.ivCount === "2");
+  const isRxC = s.tableSize === "rxc" || (!is2x2 && s.objective !== "una_muestra");
+  return (
+    <ModuleCard tag="Supuesto · Tablas de contingencia" title="Requisitos de χ² y qué hacer si no se cumplen">
+      <div className="text-sm space-y-3 text-[color:var(--ink-soft)]">
+        <div>
+          <div className="font-medium text-[color:var(--ink)]">1. Requisitos básicos</div>
+          <ul className="pl-5 list-disc mt-1 space-y-0.5">
+            <li>Cada persona aparece en una sola celda (independencia). Si son las mismas personas medidas dos veces → McNemar.</li>
+            <li>Se analizan frecuencias, no porcentajes ni medias.</li>
+            <li>Categorías exhaustivas y mutuamente excluyentes.</li>
+          </ul>
+        </div>
+        <div className={s.expectedFreq ? "hl rounded p-2 -mx-2" : ""}>
+          <div className="font-medium text-[color:var(--ink)]">2. Frecuencias esperadas (regla de Cochran)</div>
+          <p className="mt-1">Ninguna esperada &lt; 1 y no más del 20% de celdas con esperada &lt; 5. En SPSS: <span className="mono">Tablas cruzadas → Casillas → 'Esperado'</span>.
+            {s.expectedFreq === "ok" && <b className="text-[color:var(--ok)]"> Tu tabla cumple: usa χ² de Pearson.</b>}
+            {s.expectedFreq === "bajo" && <b className="text-[color:var(--accent)]"> Tu tabla no cumple: ver punto 3.</b>}</p>
+        </div>
+        <div>
+          <div className="font-medium text-[color:var(--ink)]">3. Si no se cumple</div>
+          <table className="mini mt-1">
+            <tbody>
+              <tr className={is2x2 ? "hl" : ""}><td className="mono whitespace-nowrap">2 × 2</td><td>Prueba exacta de Fisher (SPSS la reporta automáticamente). Usa el valor bilateral salvo hipótesis direccional.</td></tr>
+              <tr className={isRxC && s.objective !== "una_muestra" ? "hl" : ""}><td className="mono whitespace-nowrap">R × C</td><td>Agrupa categorías con sentido teórico, o usa Fisher-Freeman-Halton (botón 'Exactas').</td></tr>
+              <tr className={s.objective === "una_muestra" ? "hl" : ""}><td className="mono whitespace-nowrap">Bondad de ajuste</td><td>Agrupa categorías o usa la prueba exacta multinomial/binomial.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        {is2x2 && (
+          <div>
+            <div className="font-medium text-[color:var(--ink)]">Sobre la corrección de Yates</div>
+            <p className="mt-1">SPSS la muestra como “Corrección de continuidad” en tablas 2×2. Es conservadora: si las esperadas son ≥ 5 reporta χ² de Pearson; si no, Fisher.</p>
+          </div>
+        )}
+        {isRxC && s.objective !== "una_muestra" && (
+          <div>
+            <div className="font-medium text-[color:var(--ink)]">4. Si χ² es significativa en R × C</div>
+            <p className="mt-1">Localiza la asociación con los <b>residuos tipificados corregidos</b>: |z| &gt; 1.96 indica una celda con más (o menos) casos de los esperados.</p>
+          </div>
+        )}
+        <div>
+          <div className="font-medium text-[color:var(--ink)]">Tamaño de efecto</div>
+          <p className="mt-1">φ en tablas 2×2; V de Cramer en R × C. Su interpretación depende de gl* = mín(filas − 1, columnas − 1):</p>
+          <table className="mini mt-1 num">
+            <thead><tr><th>gl*</th><th>Pequeño</th><th>Mediano</th><th>Grande</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>.10</td><td>.30</td><td>.50</td></tr>
+              <tr><td>2</td><td>.07</td><td>.21</td><td>.35</td></tr>
+              <tr><td>3</td><td>.06</td><td>.17</td><td>.29</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </ModuleCard>
+  );
+}
+
+function PostHocCard({ advice }) {
+  return (
+    <ModuleCard tag="Decisión posterior · Post hoc" title={advice.title}>
+      <div className="space-y-2.5">
+        {advice.items.map((it, i) => (
+          <div key={i} className={`rounded p-3 border ${it.rec ? "border-[color:var(--accent)] bg-white" : "border-[color:var(--line)]"}`}
+               style={it.rec ? { boxShadow: "inset 3px 0 0 var(--accent)" } : {}}>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="serif text-lg">{it.name}</div>
+              {it.rec && <span className="text-[10px] mono uppercase tracking-wider text-[color:var(--accent)]">Recomendada para tu caso</span>}
+            </div>
+            <p className="text-sm text-[color:var(--ink-soft)] mt-0.5">{it.when}</p>
+            <p className="text-xs mono text-[color:var(--muted)] mt-1">{it.spss}</p>
+          </div>
+        ))}
+      </div>
+      <ul className="mt-4 pl-5 list-disc text-xs text-[color:var(--ink-soft)] space-y-1">
+        {advice.notes.map((n, i) => <li key={i}>{n}</li>)}
+      </ul>
+    </ModuleCard>
+  );
+}
+
+function Roadmap({ steps }) {
+  return (
+    <div className="card rounded p-6 md:p-8">
+      <div className="flex items-baseline justify-between mb-5">
+        <h2 className="serif text-2xl font-medium marker">Ruta de análisis para tu caso</h2>
+        <span className="text-xs mono text-[color:var(--muted)]">En este orden</span>
+      </div>
+      <ol className="relative">
+        {steps.map((st, i) => (
+          <li key={i} className="flex gap-4 pb-5 last:pb-0 relative">
+            {i < steps.length - 1 && <span className="absolute left-[15px] top-8 bottom-0 w-px bg-[color:var(--line)]"></span>}
+            <span className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center mono text-xs bg-[color:var(--ink)] text-[color:var(--paper)] relative">{i + 1}</span>
+            <div className="pt-1">
+              <div className="font-medium">{st.title}</div>
+              <p className="text-sm text-[color:var(--ink-soft)] mt-0.5">{st.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/* ============================================================
+   MODO GUIADO
+   ============================================================ */
+function GuidedMode({ raw, setRaw, resolved }) {
+  const { clean, steps } = resolved;
+  const answered = steps.filter(st => clean[st.field]);
+  const current = steps.find(st => !clean[st.field]);
+
+  const clearFrom = (st, base) => {
+    const next = { ...base };
+    STEPS.slice(STEPS.indexOf(st)).forEach(x => { next[x.field] = ""; });
+    return next;
+  };
+  const answer = (st, v) => {
+    const next = clearFrom(st, raw);
+    next[st.field] = v;
+    setRaw(next);
+  };
+  const goTo = st => setRaw(clearFrom(st, raw));
+  const back = () => { if (answered.length) goTo(answered[answered.length - 1]); };
+  const pct = Math.round(100 * answered.length / Math.max(steps.length, 1));
+
+  return (
+    <div className="card rounded p-6 md:p-8">
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="serif text-2xl font-medium marker">Decide paso a paso</h2>
+        <span className="text-xs mono text-[color:var(--muted)]">{current ? `Pregunta ${answered.length + 1}` : "Ruta completa"}</span>
+      </div>
+      <div className="h-1 rounded bg-[color:var(--paper-2)] mb-6 overflow-hidden">
+        <div className="h-full bg-[color:var(--accent)] transition-all" style={{ width: `${current ? pct : 100}%` }}></div>
+      </div>
+
+      {current ? (
+        <div className="fade-in" key={current.field}>
+          <h3 className="serif text-2xl leading-snug">{getText(current.q, clean)}</h3>
+          {current.help && <div className="text-sm text-[color:var(--ink-soft)] mt-2 border-l-2 border-[color:var(--accent-soft)] pl-3">{getText(current.help, clean)}</div>}
+          <div className="grid sm:grid-cols-2 gap-2.5 mt-5">
+            {getOpts(current, clean).map(o => (
+              <button key={o.value} className="opt" onClick={() => answer(current, o.value)}>
+                <div className="font-medium">{o.label}</div>
+                {o.desc && <div className="text-xs text-[color:var(--ink-soft)] mt-0.5">{o.desc}</div>}
+              </button>
+            ))}
+          </div>
+          {answered.length > 0 && (
+            <button onClick={back} className="mt-5 text-sm text-[color:var(--muted)] hover:text-[color:var(--accent)]">← Pregunta anterior</button>
+          )}
+        </div>
+      ) : (
+        <div className="fade-in text-sm border-l-2 border-[color:var(--ok)] pl-4 py-1">
+          <div className="font-medium text-[color:var(--ok)]">Ruta completa.</div>
+          <div className="text-[color:var(--ink-soft)]">Revisa las sugerencias, la ruta de análisis y los supuestos. Puedes cambiar cualquier respuesta abajo.</div>
+        </div>
+      )}
+
+      {answered.length > 0 && (
+        <div className="mt-7 pt-5 border-t rule">
+          <div className="label mb-2">Tu ruta de decisión</div>
+          <ol className="space-y-1.5">
+            {answered.map((st, i) => (
+              <li key={st.field} className="flex items-center gap-3 text-sm">
+                <span className="mono text-xs text-[color:var(--accent)] w-5">{String(i + 1).padStart(2, "0")}</span>
+                <span className="text-[color:var(--muted)] w-44 shrink-0">{st.short}</span>
+                <span className="flex-1 font-medium">{optLabel(st, clean, clean[st.field])}</span>
+                <button onClick={() => goTo(st)} className="text-xs text-[color:var(--muted)] hover:text-[color:var(--accent)] underline underline-offset-2">cambiar</button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   MODO FORMULARIO
+   ============================================================ */
+function FormMode({ raw, setRaw, resolved }) {
+  const { clean, steps } = resolved;
+  return (
+    <div className="card rounded p-6 md:p-8">
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="serif text-2xl font-medium marker">Características del diseño</h2>
+        <span className="text-xs mono text-[color:var(--muted)]">Paso 2</span>
+      </div>
+      <p className="text-xs text-[color:var(--muted)] mb-6">Los campos aparecen conforme se vuelven relevantes para tu caso.</p>
+      <div className="grid md:grid-cols-2 gap-5">
+        {steps.map(st => (
+          <div key={st.field} className="fade-in">
+            <Field label={st.short}>
+              <Select value={clean[st.field] || ""} onChange={v => setRaw({ ...raw, [st.field]: v })} options={getOpts(st, clean)} />
+            </Field>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   APP
+   ============================================================ */
+const EMPTY = Object.fromEntries(STEPS.map(st => [st.field, ""]));
+const IN_FRAME = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+
 function App() {
+  const [mode, setMode] = useState("guiado");
+  const [raw, setRaw] = useState(EMPTY);
   const [researchQuestion, setRQ] = useState("");
   const [iv, setIV] = useState("");
   const [dv, setDV] = useState("");
-  const [objective, setObjective] = useState("");
-  const [dvType, setDvType] = useState("");
-  const [ivCount, setIvCount] = useState("");
-  const [design, setDesign] = useState("");
-  const [normality, setNormality] = useState("");
-  const [equalVar, setEqualVar] = useState("");
-  const [hasCovariates, setHasCovariates] = useState("");
-  const [sample, setSample] = useState("");
-  const [multipleDV, setMultipleDV] = useState("");
   const [labelA, setLabelA] = useState("");
   const [labelB, setLabelB] = useState("");
   const [direction, setDirection] = useState("");
 
-  const state = { objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV };
-  const ready = objective && dvType && (objective === "una_muestra" || objective === "asociacion_cat" || objective === "supervivencia" || objective === "multivariante" || ivCount);
-  const results = useMemo(() => ready ? suggestTests(state) : [], [ready, objective, dvType, ivCount, design, normality, equalVar, hasCovariates, sample, multipleDV]);
+  const resolved = useMemo(() => resolve(raw), [raw]);
+  const s = resolved.clean;
+  const complete = resolved.steps.every(st => s[st.field]);
+  const ready = !!(s.objective && s.dvType && (["una_muestra", "asociacion_cat", "supervivencia", "multivariante", "relacion", "predecir"].includes(s.objective) || s.ivCount));
+  const results = useMemo(() => ready ? suggestTests(s) : [], [JSON.stringify(s), ready]);
+  const roadmap = useMemo(() => ready ? buildRoadmap(s, results) : [], [JSON.stringify(s), results]);
+  const posthoc = ready ? postHocAdvice(s, results) : null;
+  const showNorm = ready && (contPath(s) || (s.objective === "predecir" && s.dvType === "continua"));
+  const showChi = ready && (isChiPath(s) || results.some(r => ["chi_independencia", "fisher", "chi_bondad"].includes(r.key)));
+  const showHyp = mode === "formulario" || complete;
 
   const reset = () => {
-    setRQ(""); setIV(""); setDV(""); setObjective(""); setDvType(""); setIvCount("");
-    setDesign(""); setNormality(""); setEqualVar(""); setHasCovariates(""); setSample(""); setMultipleDV("");
+    setRaw(EMPTY); setRQ(""); setIV(""); setDV("");
     setLabelA(""); setLabelB(""); setDirection("");
   };
 
   return (
     <div className="max-w-[1300px] mx-auto px-6 md:px-10 py-10 md:py-14">
-      {/* Header */}
-      <header className="flex items-end justify-between pb-8 border-b-2 rule">
+      <header className="flex flex-wrap items-end justify-between gap-6 pb-8 border-b-2 rule">
         <div>
           <div className="flex items-center gap-3 text-xs mono uppercase tracking-[0.2em] text-[color:var(--muted)]">
             <span>Material didáctico</span>
             <span className="text-[color:var(--accent)]">●</span>
-            <span>Estadística Inferencial</span>
+            <span>Estadística inferencial · Psicología y Ciencias de la Salud</span>
           </div>
           <h1 className="serif text-5xl md:text-6xl font-medium tracking-tight mt-3 leading-[0.95]">
             Selector de <span className="italic text-[color:var(--accent)]">prueba estadística</span>
           </h1>
           <p className="mt-3 text-[color:var(--ink-soft)] max-w-2xl">
-            Herramienta orientativa para estudiantes de Psicología. Responde a partir del objetivo de tu estudio, la naturaleza de tus variables y los supuestos que puedas verificar.
+            Herramienta orientativa. Responde a partir del objetivo de tu estudio, la naturaleza de tus variables y los supuestos que verifiques; obtendrás la prueba sugerida, el orden de análisis y las reglas de decisión.
           </p>
         </div>
-        <div className="hidden md:block text-right text-xs mono text-[color:var(--muted)]">
-          <div>v 2.1</div>
-          <div>SPSS · Jamovi · H₀ / Hₐ</div>
+        <div className="no-print">
+          <div className="label mb-1.5 text-right">Modo</div>
+          <div className="seg inline-flex rounded border rule overflow-hidden">
+            <button className={mode === "guiado" ? "on" : ""} onClick={() => setMode("guiado")}>Guiado paso a paso</button>
+            <button className={mode === "formulario" ? "on" : ""} onClick={() => setMode("formulario")}>Formulario completo</button>
+          </div>
+          <div className="text-[11px] text-[color:var(--muted)] mt-1.5 text-right">Tus respuestas se conservan al cambiar de modo.</div>
         </div>
       </header>
 
       <div className="grid lg:grid-cols-5 gap-8 mt-10">
-        {/* Formulario */}
         <section className="lg:col-span-3 space-y-6">
           <div className="card rounded p-6 md:p-8">
             <div className="flex items-baseline justify-between mb-6">
               <h2 className="serif text-2xl font-medium marker">Describe tu estudio</h2>
-              <span className="text-xs mono text-[color:var(--muted)]">Paso 1</span>
+              <span className="text-xs mono text-[color:var(--muted)]">Paso 1 · opcional</span>
             </div>
-
             <div className="grid md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
                 <Field label="Pregunta de investigación">
                   <textarea value={researchQuestion} onChange={e => setRQ(e.target.value)}
-                    placeholder="Ej.: ¿Existen diferencias en estrés percibido entre estudiantes con alta y baja exposición al ruido?" />
+                    placeholder="Ej.: ¿Difiere el estrés percibido entre médicos internos de turno nocturno y diurno?" />
                 </Field>
               </div>
               <Field label="Variable independiente (VI)">
-                <input value={iv} onChange={e => setIV(e.target.value)} placeholder="Ej.: nivel de exposición al ruido" />
+                <input value={iv} onChange={e => setIV(e.target.value)} placeholder="Ej.: turno laboral" />
               </Field>
               <Field label="Variable dependiente (VD)">
-                <input value={dv} onChange={e => setDV(e.target.value)} placeholder="Ej.: estrés percibido" />
+                <input value={dv} onChange={e => setDV(e.target.value)} placeholder="Ej.: estrés percibido (PSS-10)" />
               </Field>
             </div>
           </div>
 
-          <div className="card rounded p-6 md:p-8">
-            <div className="flex items-baseline justify-between mb-6">
-              <h2 className="serif text-2xl font-medium marker">Características del diseño</h2>
-              <span className="text-xs mono text-[color:var(--muted)]">Paso 2</span>
-            </div>
+          {mode === "guiado"
+            ? <GuidedMode raw={raw} setRaw={setRaw} resolved={resolved} />
+            : <FormMode raw={raw} setRaw={setRaw} resolved={resolved} />}
 
-            <div className="grid md:grid-cols-2 gap-5">
-              <Field label="Objetivo analítico">
-                <Select value={objective} onChange={setObjective} options={objectives} />
-              </Field>
-              <Field label="Tipo de variable dependiente">
-                <Select value={dvType} onChange={setDvType} options={dvTypes} />
-              </Field>
-              <Field label="Grupos / niveles a comparar" hint="Solo aplica si comparas o evalúas cambio.">
-                <Select value={ivCount} onChange={setIvCount} options={ivCounts} />
-              </Field>
-              <Field label="Diseño de los datos">
-                <Select value={design} onChange={setDesign} options={designs} />
-              </Field>
-              <Field label="Normalidad de la VD" hint="Shapiro-Wilk (n&lt;50) o K-S con corrección de Lilliefors.">
-                <Select value={normality} onChange={setNormality} options={normalityOpts} />
-              </Field>
-              <Field label="Homogeneidad de varianzas" hint="Prueba de Levene en SPSS.">
-                <Select value={equalVar} onChange={setEqualVar} options={varianceOpts} />
-              </Field>
-              <Field label="Tamaño de muestra">
-                <Select value={sample} onChange={setSample} options={sampleOpts} />
-              </Field>
-              <Field label="¿Controlar covariables continuas?">
-                <Select value={hasCovariates} onChange={setHasCovariates} options={[{value:"si",label:"Sí"},{value:"no",label:"No"}]} />
-              </Field>
-              <div className="md:col-span-2">
-                <Field label="¿Tienes varias variables dependientes continuas?" hint="Activa sugerencias multivariantes (MANOVA).">
-                  <Select value={multipleDV} onChange={setMultipleDV} options={[{value:"si",label:"Sí"},{value:"no",label:"No"}]} />
-                </Field>
+          {showHyp && (
+            <div className="card rounded p-6 md:p-8">
+              <div className="flex items-baseline justify-between mb-6">
+                <h2 className="serif text-2xl font-medium marker">Planteamiento de hipótesis</h2>
+                <span className="text-xs mono text-[color:var(--muted)]">Paso 3</span>
               </div>
+              <HypothesisBuilder state={s}
+                labelA={labelA} setLabelA={setLabelA}
+                labelB={labelB} setLabelB={setLabelB}
+                direction={direction} setDirection={setDirection} />
             </div>
-          </div>
-
-          <div className="card rounded p-6 md:p-8">
-            <div className="flex items-baseline justify-between mb-6">
-              <h2 className="serif text-2xl font-medium marker">Planteamiento de hipótesis</h2>
-              <span className="text-xs mono text-[color:var(--muted)]">Paso 3</span>
-            </div>
-            <HypothesisBuilder
-              state={state}
-              labelA={labelA} setLabelA={setLabelA}
-              labelB={labelB} setLabelB={setLabelB}
-              direction={direction} setDirection={setDirection}
-            />
-          </div>
+          )}
         </section>
 
-        {/* Resultados */}
         <aside className="lg:col-span-2 space-y-6">
           <div className="card rounded p-6">
             <div className="flex items-baseline justify-between mb-4">
               <h2 className="serif text-2xl font-medium marker">Sugerencias</h2>
               <span className="text-xs mono text-[color:var(--muted)]">Paso 4</span>
             </div>
-
             {!ready ? (
               <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">
-                Completa al menos <span className="font-medium text-[color:var(--ink)]">objetivo</span>, <span className="font-medium text-[color:var(--ink)]">tipo de VD</span> y —si corresponde— <span className="font-medium text-[color:var(--ink)]">grupos</span> para ver recomendaciones.
+                Responde al menos el <span className="font-medium text-[color:var(--ink)]">objetivo</span>, el <span className="font-medium text-[color:var(--ink)]">tipo de VD</span> y —si comparas— el <span className="font-medium text-[color:var(--ink)]">número de grupos</span>.
               </div>
             ) : (
               <div className="space-y-4">
-                {results.map((item, idx) => <TestCard key={idx} item={item} idx={idx} />)}
+                {!complete && (
+                  <div className="text-xs text-[color:var(--warn)] border-l-2 border-[color:var(--warn)] pl-3 py-1">
+                    Sugerencia preliminar: completa las preguntas restantes para afinarla.
+                  </div>
+                )}
+                {results.map((item, idx) => <TestCard key={item.key} item={item} idx={idx} />)}
               </div>
             )}
           </div>
@@ -1275,38 +1863,72 @@ function App() {
               <div className="flex gap-2"><dt className="label shrink-0 w-24">VI</dt><dd className="text-[color:var(--ink-soft)]">{iv || "—"}</dd></div>
               <div className="flex gap-2"><dt className="label shrink-0 w-24">VD</dt><dd className="text-[color:var(--ink-soft)]">{dv || "—"}</dd></div>
               {(() => {
-                const h = buildHypotheses(state, { a: labelA || getLabelNames(state).a, b: labelB || getLabelNames(state).b });
+                const h = buildHypotheses(s, { a: labelA || getLabelNames(s).a, b: labelB || getLabelNames(s).b });
                 if (!h) return null;
                 const sel = direction ? h.alternatives.find(a => a.id === direction) : null;
                 return (
                   <>
                     <div className="flex gap-2 pt-2 border-t rule mt-2"><dt className="label shrink-0 w-24">H₀</dt><dd className="serif num text-[color:var(--ink)]">{h.h0.notation}</dd></div>
-                    <div className="flex gap-2"><dt className="label shrink-0 w-24">Hₐ</dt><dd className="serif num text-[color:var(--ink)]">{sel ? sel.notation : <span className="text-[color:var(--muted)] not-italic font-sans">— sin seleccionar —</span>}</dd></div>
+                    <div className="flex gap-2"><dt className="label shrink-0 w-24">Hₐ</dt><dd className="serif num text-[color:var(--ink)]">{sel ? sel.notation : <span className="text-[color:var(--muted)] font-sans">— sin seleccionar —</span>}</dd></div>
                   </>
                 );
               })()}
             </dl>
           </div>
 
-          <div className="rounded p-6 border border-dashed" style={{borderColor:'var(--accent-soft)', background:'rgba(228,168,142,.15)'}}>
+          <div className="rounded p-6 border border-dashed" style={{ borderColor: 'var(--accent-soft)', background: 'rgba(228,168,142,.15)' }}>
             <h3 className="serif text-lg font-medium mb-2">Nota importante</h3>
             <p className="text-sm text-[color:var(--ink-soft)]">
               Esta herramienta <span className="font-medium">orienta</span>; no reemplaza la revisión metodológica. La elección final depende de los supuestos, el tamaño de muestra, la calidad de la medición y el objetivo teórico del estudio.
             </p>
             <p className="text-sm text-[color:var(--ink-soft)] mt-2">
-              Recuerda siempre reportar el <span className="serif italic">tamaño de efecto</span> e intervalos de confianza, no solo el valor p.
+              Reporta siempre el <span className="serif italic">tamaño de efecto</span> y su intervalo de confianza, no solo el valor p.
             </p>
           </div>
 
           <div className="flex gap-3 no-print">
+            {!IN_FRAME && <button onClick={() => window.print()} className="flex-1 chip rounded py-2.5 text-sm hover:bg-[color:var(--paper)]">Imprimir / PDF</button>}
             <button onClick={reset} className="flex-1 btn-accent rounded py-2.5 text-sm">Reiniciar</button>
           </div>
         </aside>
       </div>
 
-      <footer className="mt-16 pt-6 border-t rule text-xs mono text-[color:var(--muted)] flex flex-wrap gap-4 justify-between">
-        <span>© Dr. Jose Antonio · Material didáctico para Inferencial (5º sem. Psicología)</span>
-        <span>Árbol de decisión ampliado + generador de hipótesis · v 2.1</span>
+      {ready && (
+        <section className="mt-12">
+          <div className="flex items-baseline justify-between pb-4 mb-6 border-b rule">
+            <h2 className="serif text-3xl font-medium">Orden de análisis y verificación de supuestos</h2>
+            <span className="text-xs mono text-[color:var(--muted)]">Paso 5</span>
+          </div>
+          <div className="grid lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-2"><Roadmap steps={roadmap} /></div>
+            <div className="lg:col-span-3 space-y-6">
+              {showNorm && <NormalityCard s={s} />}
+              {posthoc && <PostHocCard advice={posthoc} />}
+              {showChi && <ChiCard s={s} />}
+              {!showNorm && !posthoc && !showChi && (
+                <div className="text-sm text-[color:var(--muted)] border-l-2 border-[color:var(--accent)] pl-4 py-2">
+                  Para este caso no hay módulos de supuestos adicionales; revisa los supuestos listados en cada prueba sugerida.
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="mt-14 pt-6 border-t rule text-xs text-[color:var(--muted)]">
+        <div className="label mb-2">Referencias</div>
+        <ul className="space-y-1.5" style={{ paddingLeft: "1.5em", textIndent: "-1.5em" }}>
+          <li>Cochran, W. G. (1954). Some methods for strengthening the common χ² tests. <i>Biometrics, 10</i>(4), 417–451. https://doi.org/10.2307/3001616</li>
+          <li>Cohen, J. (1988). <i>Statistical power analysis for the behavioral sciences</i> (2nd ed.). Lawrence Erlbaum Associates.</li>
+          <li>Field, A. (2018). <i>Discovering statistics using IBM SPSS Statistics</i> (5th ed.). SAGE.</li>
+          <li>Ghasemi, A., & Zahediasl, S. (2012). Normality tests for statistical analysis: A guide for non-statisticians. <i>International Journal of Endocrinology and Metabolism, 10</i>(2), 486–489. https://doi.org/10.5812/ijem.3505</li>
+          <li>Kim, H.-Y. (2013). Statistical notes for clinical researchers: Assessing normal distribution (2) using skewness and kurtosis. <i>Restorative Dentistry & Endodontics, 38</i>(1), 52–54. https://doi.org/10.5395/rde.2013.38.1.52</li>
+        </ul>
+      </section>
+
+      <footer className="mt-10 pt-6 border-t rule text-xs mono text-[color:var(--muted)] flex flex-wrap gap-4 justify-between">
+        <span>© Dr. José Antonio Campos Gil · Material didáctico de Estadística inferencial</span>
+        <span>Modo guiado + reglas de supuestos · v 3.0</span>
       </footer>
     </div>
   );
